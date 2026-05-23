@@ -1,0 +1,6 @@
+{
+  "name": "Estimasi Sworn Translator AMPM",
+  "description": "Form estimasi penerjemah tersumpah berbagai bahasa oleh AMPM Sworn Translator, lengkap dengan analisis jenis dokumen, hitung halaman standar, dan pencatatan leads.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
