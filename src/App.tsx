@@ -35,7 +35,7 @@ import {
   ArrowLeftRight
 } from 'lucide-react';
 
-import { TranslationLead, GoogleSheetConfig, UploadedDoc } from './types';
+import { TranslationLead, GoogleSheetConfig, UploadedDoc, CanvasingContact } from './types';
 import { 
   SWORN_PRICING, 
   NON_SWORN_PRICING, 
@@ -111,6 +111,9 @@ export default function App() {
   // Admin Dashboard states
   const [leads, setLeads] = useState<TranslationLead[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [isGeneratingDummy, setIsGeneratingDummy] = useState(false);
+  const [dummySyncProgress, setDummySyncProgress] = useState<string | null>(null);
+  const [isSheetsSettingsOpen, setIsSheetsSettingsOpen] = useState(false);
   const [sheetsConfig, setSheetsConfig] = useState<GoogleSheetConfig>({ webhookUrl: '', isEnabled: false });
   const [savingConfig, setSavingConfig] = useState(false);
   const [configSuccess, setConfigSuccess] = useState(false);
@@ -126,16 +129,46 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
 
   // Admin Order & CRM Sub-Tabs & modal states
-  const [adminSubTab, setAdminSubTab] = useState<'leads' | 'orders' | 'insights'>('leads');
+  const [adminSubTab, setAdminSubTab] = useState<'leads' | 'orders' | 'canvasing' | 'insights'>('leads');
+  const [canvasingContacts, setCanvasingContacts] = useState<CanvasingContact[]>([]);
+  const [loadingCanvasing, setLoadingCanvasing] = useState(false);
+  const [isAddingCanvasing, setIsAddingCanvasing] = useState(false);
+
+  // Canvasing Quick Form States
+  const [canvasingNomorSuratInput, setCanvasingNomorSuratInput] = useState('');
+  const [canvasingNamaPerusahaanInput, setCanvasingNamaPerusahaanInput] = useState('');
+  const [canvasingNamaPicInput, setCanvasingNamaPicInput] = useState('');
+  const [canvasingNoTelpInput, setCanvasingNoTelpInput] = useState('');
+  const [canvasingNoEmailInput, setCanvasingNoEmailInput] = useState('');
+  const [canvasingKategoriInput, setCanvasingKategoriInput] = useState('Teknologi & IT');
+  const [canvasingSuratPenawaranInput, setCanvasingSuratPenawaranInput] = useState('');
+  const [canvasingResponInput, setCanvasingResponInput] = useState<'Tidak Respon' | 'Follow Up' | 'Closing'>('Tidak Respon');
+
   const [quotationModalLead, setQuotationModalLead] = useState<TranslationLead | null>(null);
   const [invoiceModalLead, setInvoiceModalLead] = useState<TranslationLead | null>(null);
   const [dealEditLead, setDealEditLead] = useState<TranslationLead | null>(null);
 
-  // States used inside Deal/Order Configuration Panel
+  // States used inside Deal/Order Configuration Panel & Customizable Invoice Items
   const [dealDeadlineInput, setDealDeadlineInput] = useState('');
   const [dealStatusInput, setDealStatusInput] = useState<'Dalam Antrean' | 'Pengerjaan Terjemah' | 'Proses Proofreading' | 'Penyegelan Tersumpah' | 'Selesai' | 'Dibatalkan'>('Dalam Antrean');
   const [dealPriceInput, setDealPriceInput] = useState<number>(0);
   const [dealNotesInput, setDealNotesInput] = useState('');
+  const [dealInvoiceItems, setDealInvoiceItems] = useState<any[]>([]);
+
+  // Instant creation overlay states B2B / Invoice
+  const [instantCompanyCategoryInput, setInstantCompanyCategoryInput] = useState('');
+  const [isCreatingCompanyCategoryInstantly, setIsCreatingCompanyCategoryInstantly] = useState(false);
+
+  const [instantProductInputName, setInstantProductInputName] = useState('');
+  const [instantProductInputPrice, setInstantProductInputPrice] = useState<number>(0);
+  const [instantProductInputCatId, setInstantProductInputCatId] = useState('');
+  const [isAddingProductInstantly, setIsAddingProductInstantly] = useState(false);
+
+  const [instantProductCategoryName, setInstantProductCategoryName] = useState('');
+  const [isAddingProductCategoryInstantly, setIsAddingProductCategoryInstantly] = useState(false);
+
+  // Settings internal page tabs switcher
+  const [settingsSubTab, setSettingsSubTab] = useState<'sync' | 'kategoriPerusahaan' | 'kategoriProduk' | 'produk'>('sync');
 
   // Drag over upload state
   const [dragOver, setDragOver] = useState(false);
@@ -248,9 +281,103 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'admin') {
       fetchLeads();
+      fetchCanvasing();
       fetchSheetsConfig();
     }
   }, [activeTab]);
+
+  const fetchCanvasing = async () => {
+    setLoadingCanvasing(true);
+    try {
+      const res = await fetch('/api/canvasing');
+      if (res.ok) {
+        const data = await res.json();
+        setCanvasingContacts(data);
+      }
+    } catch (e) {
+      console.error('Error fetching canvasing contacts:', e);
+    } finally {
+      setLoadingCanvasing(false);
+    }
+  };
+
+  const addCanvasingContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canvasingNamaPerusahaanInput || !canvasingNoTelpInput) {
+      alert('Nama Perusahaan & No. Telepon wajib diisi!');
+      return;
+    }
+    setIsAddingCanvasing(true);
+    try {
+      const payload = {
+        nomorSurat: canvasingNomorSuratInput,
+        namaPerusahaan: canvasingNamaPerusahaanInput,
+        namaPic: canvasingNamaPicInput,
+        noTelp: canvasingNoTelpInput,
+        noEmail: canvasingNoEmailInput,
+        kategoriPerusahaan: canvasingKategoriInput,
+        suratPenawaran: canvasingSuratPenawaranInput,
+        respon: canvasingResponInput
+      };
+      const res = await fetch('/api/canvasing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const { contact } = await res.json();
+        setCanvasingContacts(prev => [contact, ...prev]);
+        // Reset form
+        setCanvasingNomorSuratInput('');
+        setCanvasingNamaPerusahaanInput('');
+        setCanvasingNamaPicInput('');
+        setCanvasingNoTelpInput('');
+        setCanvasingNoEmailInput('');
+        setCanvasingSuratPenawaranInput('');
+        setCanvasingResponInput('Tidak Respon');
+        alert('Sukses menambahkan prospek partner Canvasing B2B baru!');
+      } else {
+        throw new Error('Gagal menyimpan kontak canvasing');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsAddingCanvasing(false);
+    }
+  };
+
+  const updateCanvasingRespon = async (id: string, newRespon: 'Tidak Respon' | 'Follow Up' | 'Closing') => {
+    try {
+      const res = await fetch(`/api/canvasing/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ respon: newRespon })
+      });
+      if (res.ok) {
+        setCanvasingContacts(prev => prev.map(c => c.id === id ? { ...c, respon: newRespon } : c));
+      } else {
+        throw new Error('Gagal merubah respon');
+      }
+    } catch (err: any) {
+      alert('Error updating response: ' + err.message);
+    }
+  };
+
+  const deleteCanvasingContact = async (id: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus kontak canvasing ini?')) return;
+    try {
+      const res = await fetch(`/api/canvasing/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setCanvasingContacts(prev => prev.filter(c => c.id !== id));
+      } else {
+        throw new Error('Gagal menghapus');
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+  };
 
   const fetchLeads = async () => {
     setLoadingLeads(true);
@@ -276,6 +403,23 @@ export default function App() {
       }
     } catch (e) {
       console.error('Error fetching sheet configs:', e);
+    }
+  };
+
+  const saveUpdatedAppConfig = async (newConfig: GoogleSheetConfig) => {
+    try {
+      const res = await fetch('/api/sheet-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newConfig)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSheetsConfig(data.config || data);
+        return data.config || data;
+      }
+    } catch (e) {
+      console.error('Error saving updated app config:', e);
     }
   };
 
@@ -503,11 +647,41 @@ export default function App() {
       }
       
       alert(isDealed 
-        ? `Sukses! Lead ${lead.id} berhasil ditandai sebagai DEAL.\n\nAnda dapat mengelola deadline, rincian biaya deal, status proses, serta mencetak Invoice & Penawaran di tab "Manajemen Order".`
+        ? `Sukses! Lead ${lead.id} berhasil ditandai sebagai DEAL.\n\nSilakan cetak Penawaran & Invoice di tab "CRM & Prospek", lalu klik "Tandai Lunas" untuk memindahkannya ke tab "Manajemen Order" setelah pembayaran diterima.`
         : `Sukses! Order ${lead.id} dikembalikan ke database CRM Prospek.`
       );
     } catch (err: any) {
       console.error('Error toggling deal:', err);
+      alert('Gagal: ' + err.message);
+    }
+  };
+
+  const handleMarkasPaid = async (lead: TranslationLead, isPaid: boolean) => {
+    try {
+      const updatePayload: Partial<TranslationLead> = {
+        isPaid,
+        dealStatus: isPaid ? 'Pengerjaan Terjemah' : 'Dalam Antrean'
+      };
+
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatePayload)
+      });
+
+      if (!res.ok) throw new Error('Gagal menandai status pembayaran');
+
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updatePayload } : l));
+      if (selectedAdminLead && selectedAdminLead.id === lead.id) {
+        setSelectedAdminLead(prev => prev ? { ...prev, ...updatePayload } : null);
+      }
+
+      alert(isPaid 
+        ? `Sukses! Pembayaran untuk ${lead.id} telah berhasil diverifikasi.\n\nData klien telah digeser ke tab "Manajemen Order" untuk proses pengerjaan juru bahasa.`
+        : `Sukses! Status pembayaran untuk ${lead.id} diset belum bayar.`
+      );
+    } catch (err: any) {
+      console.error('Error marking as paid:', err);
       alert('Gagal: ' + err.message);
     }
   };
@@ -518,7 +692,8 @@ export default function App() {
         dealDeadline: dealDeadlineInput,
         dealStatus: dealStatusInput,
         dealFinalPrice: Number(dealPriceInput),
-        orderNotes: dealNotesInput
+        orderNotes: dealNotesInput,
+        invoiceItems: dealInvoiceItems
       };
 
       const res = await fetch(`/api/leads/${id}`, {
@@ -955,6 +1130,61 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
     document.body.removeChild(link);
   };
 
+  // Generate 20 high-quality dummy leads on the server with optional automatic Google Sheets direct synchronization
+  const handleGenerateDummyLeads = async () => {
+    if (isGeneratingDummy) return;
+    setIsGeneratingDummy(true);
+    setDummySyncProgress("Membuat 20 data dummy di server...");
+    
+    try {
+      const response = await fetch('/api/leads/generate-dummy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal menghubungi server untuk membuat data dummy');
+      }
+
+      const resData = await response.json();
+      if (!resData.success) {
+        throw new Error(resData.error || 'Gagal menyimpan data dummy');
+      }
+
+      setDummySyncProgress("20 Data dummy berhasil dibuat lokal!");
+      
+      // Instantly load the new records in our local client-side state
+      await fetchLeads();
+
+      // Detect if Google Sheets config and authorization exists
+      const isGoogleSheetsSyncActive = sheetsConfig.googleSpreadsheetId && gToken;
+      if (isGoogleSheetsSyncActive) {
+        const wantsSheetSync = confirm(
+          "Berhasil membuat 20 data dummy CRM baru secara lokal!\n\nKami mendeteksi Anda saat ini terhubung ke Google Sheets.\nApakah Anda juga ingin mengunggah ke-20 data dummy ini ke Google Sheet Anda?"
+        );
+
+        if (wantsSheetSync) {
+          let syncedCount = 0;
+          for (let i = 0; i < resData.leads.length; i++) {
+            const lead = resData.leads[i];
+            setDummySyncProgress(`Sinkronisasi Sheet (${i+1}/20): ${lead.customerName}...`);
+            const ok = await syncLeadToGoogleSheet(lead, true);
+            if (ok) syncedCount++;
+          }
+          alert(`Selesai! ${syncedCount} dari 20 data dummy berhasil disinkronkan ke Google Sheet Anda.`);
+        }
+      } else {
+        alert("Sukses membuat 20 data dummy CRM baru secara lokal! Anda dapat langsung meninjau analitik di tab 'Insight Bisnis' dan menguji alur kerja order.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Gagal menghasilkan data dummy: ' + err.message);
+    } finally {
+      setIsGeneratingDummy(false);
+      setDummySyncProgress(null);
+    }
+  };
+
   // Filtered leads for search and admin sub-tabs (split leads vs dealed orders)
   const filteredLeads = leads.filter(l => {
     const matchesSearch = 
@@ -964,11 +1194,25 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
       l.targetLanguage.toLowerCase().includes(searchQuery.toLowerCase());
       
     if (adminSubTab === 'leads') {
-      return !l.isDealed && matchesSearch;
+      return !l.isPaid && matchesSearch;
     } else if (adminSubTab === 'orders') {
-      return !!l.isDealed && matchesSearch;
+      return !!l.isPaid && matchesSearch;
     }
     return matchesSearch;
+  });
+
+  // Filtered canvasing contacts B2B
+  const filteredCanvasing = canvasingContacts.filter(c => {
+    const s = searchQuery.toLowerCase();
+    return (
+      c.namaPerusahaan.toLowerCase().includes(s) ||
+      (c.namaPic && c.namaPic.toLowerCase().includes(s)) ||
+      c.nomorSurat.toLowerCase().includes(s) ||
+      c.kategoriPerusahaan.toLowerCase().includes(s) ||
+      c.suratPenawaran.toLowerCase().includes(s) ||
+      c.noTelp.includes(s) ||
+      (c.noEmail && c.noEmail.toLowerCase().includes(s))
+    );
   });
 
   return (
@@ -2126,212 +2370,32 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                   </form>
                 </div>
               ) : (
-                /* LAYMAN FRIENDLY ADMIN WORKSPACE */
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
+                /* LAYMAN FRIENDLY ADMIN WORKSPACE (FULL WIDTH ENGINE) */
+                <div className="w-full text-left space-y-6 animate-fade-in">
                   
-                  {/* Left Column: Easy Google Connection (4 cols) */}
-                  <div className="lg:col-span-4 flex flex-col space-y-6">
-                    
-                    {/* Simplified Google Sheet Integration Card */}
-                    <div className="bg-white rounded-2xl border border-slate-150 p-6 shadow-sm space-y-5 text-left">
-                      <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-                        <div className="p-2 bg-emerald-50 text-emerald-800 rounded-lg">
-                          <FileSpreadsheetIcon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-sm text-slate-800 font-display">Koneksi Otomatis Google Sheets</h3>
-                          <span className="inline-flex bg-emerald-50 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-emerald-100 mt-0.5">
-                            Aktif & Direkomendasikan
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Friendly Step-by-Step Info for laymen */}
-                      <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-150 space-y-2 text-left">
-                        <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wide block">
-                          💡 Cara Pakai Mudah (Sangat Gampang):
+                  {/* Active Google Sheets Synchronization Status Banner */}
+                  {sheetsConfig.googleSpreadsheetId && gToken && (
+                    <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 font-sans shadow-xs">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </span>
-                        <ul className="text-[10px] text-slate-500 space-y-1.5 leading-relaxed font-semibold">
-                          <li className="flex items-start gap-1">
-                            <span className="text-indigo-600 font-bold">1.</span>
-                            <span>Sambungkan akun Google Anda dengan menekan tombol <b>"Login Google"</b>.</span>
-                          </li>
-                          <li className="flex items-start gap-1">
-                            <span className="text-indigo-600 font-bold">2.</span>
-                            <span>Pilih salah satu file Google Sheets Anda, atau klik tombol <b>"+ Buat Baru Otomatis"</b>.</span>
-                          </li>
-                          <li className="flex items-start gap-1">
-                            <span className="text-indigo-600 font-bold">3.</span>
-                            <span>Nyalakan centang <b>"Sinkron Otomatis"</b> agar data klien baru langsung terisi otomatis!</span>
-                          </li>
-                        </ul>
+                        <div>
+                          <p className="text-xs font-bold text-emerald-850">Koneksi Otomatis Google Sheets Aktif</p>
+                          <p className="text-[10px] text-emerald-600 font-semibold leading-none mt-0.5">Setiap formulir masuk langsung terintegrasi otomatis ke file spreadsheet excel Anda.</p>
+                        </div>
                       </div>
-
-                      {!gUser ? (
-                        <div className="space-y-4">
-                          <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
-                            Akun belum tersambung. Hubungkan akun Google Drive toko untuk menulis prospek ke spreadsheet excel secara langsung.
-                          </p>
-                          
-                          <button
-                            type="button"
-                            onClick={handleGoogleLogin}
-                            className="gsi-material-button w-full cursor-pointer hover:bg-slate-50 border border-slate-200 transition-all shadow-xs rounded-xl py-2 flex items-center justify-center bg-white"
-                          >
-                            <div className="gsi-material-button-state"></div>
-                            <div className="gsi-material-button-content-wrapper flex items-center gap-2">
-                              <div className="gsi-material-button-icon shrink-0">
-                                <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ display: 'block', width: '20px', height: '20px' }}>
-                                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                                  <path fill="none" d="M0 0h48v48H0z"></path>
-                                </svg>
-                              </div>
-                              <span className="gsi-material-button-contents text-xs font-bold text-slate-705">Hubungkan Google Akun</span>
-                            </div>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {/* Logged in indicator */}
-                          <div className="p-3 bg-indigo-50/50 rounded-xl flex items-center justify-between border border-indigo-100 text-left">
-                            <div className="flex items-center gap-2">
-                              {gUser.photoURL ? (
-                                <img src={gUser.photoURL} alt="Google" className="w-8 h-8 rounded-full border border-indigo-150" referrerPolicy="no-referrer" />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs select-none">
-                                  {gUser.displayName?.charAt(0) || 'U'}
-                                </div>
-                              )}
-                              <div className="text-left leading-none font-sans">
-                                <span className="block text-xs font-bold text-slate-800">{gUser.displayName || 'Akun Admin'}</span>
-                                <span className="block text-[9px] text-slate-400 mt-1">{gUser.email}</span>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleGoogleLogout}
-                              className="p-1.5 text-slate-400 hover:text-rose-650 rounded-lg hover:bg-rose-50/50 transition duration-150 cursor-pointer"
-                              title="Sign Out Google"
-                            >
-                              <LogOut className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          <div className="space-y-3 text-left">
-                            {/* Selector sheet */}
-                            <div className="space-y-1.5 font-sans">
-                              <label className="block text-xs font-bold text-slate-600">Pilih Google Sheet Tujuan:</label>
-                              {isLoadingGSheets ? (
-                                <div className="flex items-center space-x-1.5 text-slate-400 py-1 text-xs font-medium">
-                                  <Loader2 className="w-3 h-3 animate-spin text-indigo-600" />
-                                  <span>Membaca daftar file...</span>
-                                </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  <select
-                                    value={sheetsConfig.googleSpreadsheetId || ''}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      const updated = { ...sheetsConfig, googleSpreadsheetId: val };
-                                      setSheetsConfig(updated);
-                                      fetch('/api/sheet-config', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify(updated)
-                                      });
-                                    }}
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-705 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-sans cursor-pointer"
-                                  >
-                                    <option value="">-- Silakan Pilih File Excel Anda --</option>
-                                    {gSpreadsheets.length > 0 ? (
-                                      gSpreadsheets.map(sh => (
-                                        <option key={sh.id} value={sh.id}>{sh.name}</option>
-                                      ))
-                                    ) : (
-                                      <option disabled>Tidak ditemukan file spreadsheet di Drive</option>
-                                    )}
-                                  </select>
-
-                                  <button
-                                    type="button"
-                                    onClick={handleCreateAutoSheet}
-                                    disabled={isCreatingGSheet}
-                                    className="w-full bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-indigo-750 font-bold text-[11px] py-1.5 px-3 rounded-lg flex items-center justify-center space-x-1 transition-all disabled:opacity-50 cursor-pointer"
-                                  >
-                                    {isCreatingGSheet ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 text-indigo-600" /> : <Plus className="w-3.5 h-3.5" />}
-                                    <span>{isCreatingGSheet ? 'Sedang Membuat...' : 'Buat Database Sheet Baru'}</span>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Direct Sync enabled checkbox switch */}
-                            <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-150 font-sans">
-                              <div className="space-y-0.5">
-                                <span className="block text-xs font-bold text-slate-800">Sinkron Otomatis (Direct Sync)</span>
-                                <span className="block text-[9px] text-slate-400 leading-relaxed">Tulis otomatis tiap klien submit form</span>
-                              </div>
-                              <label className="relative inline-flex items-center cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={!!sheetsConfig.googleDirectSyncEnabled}
-                                  onChange={(e) => {
-                                    const val = e.target.checked;
-                                    const updated = { ...sheetsConfig, googleDirectSyncEnabled: val };
-                                    setSheetsConfig(updated);
-                                    fetch('/api/sheet-config', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify(updated)
-                                    });
-                                  }}
-                                  disabled={!sheetsConfig.googleSpreadsheetId}
-                                  className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-305 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-45"></div>
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Simple Admin Session Card to easily Logan / Logout session */}
-                    <div className="bg-slate-50 rounded-2xl border border-slate-150 p-5 space-y-3.5 text-left font-sans">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-1.5 text-slate-705">
-                          <Lock className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="text-xs font-bold font-sans">Sesi Kerja Administrator</span>
-                        </div>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Sesi Aktif"></span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 border border-emerald-200/40 rounded-md py-1 px-2.5 truncate max-w-xs">
+                          {sheetsConfig.googleDirectSyncEnabled ? 'Direct Sync Aktif' : 'Manual Sync Only'} | ID: {sheetsConfig.googleSpreadsheetId}
+                        </span>
                       </div>
-                      <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
-                        Anda masuk sebagai <strong className="text-slate-800">admin</strong>. Keamanan sesi tersimpan di perangkat lokal Anda demi kerahasiaan client.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm('Apakah Anda yakin ingin keluar dari sesi kerja Admin?')) {
-                            localStorage.removeItem('ampm_admin_logged_in');
-                            setIsAdminLoggedIn(false);
-                            setAdminUsername('');
-                            setAdminPassword('');
-                          }
-                        }}
-                        className="w-full text-xs font-bold text-rose-600 hover:text-white bg-white hover:bg-rose-600 border border-slate-205 hover:border-rose-600 py-2 rounded-lg transition-all duration-150 flex items-center justify-center space-x-1 cursor-pointer"
-                      >
-                        <LogOut className="w-3 h-3" />
-                        <span>Keluar Sesi / Logout Admin</span>
-                      </button>
                     </div>
+                  )}
 
-                  </div>
-
-                  {/* Right Column: Leads List & Order Manager Core Desk (8 cols) */}
-                  <div className="lg:col-span-8 flex flex-col space-y-6">
+                  {/* CRM & Order Manager Core Desk (100% Full Width) */}
+                  <div className="w-full flex flex-col space-y-6">
                     <div className="bg-white rounded-2xl border border-slate-150 shadow-sm overflow-hidden flex flex-col min-h-[550px]">
                     
                     {/* Header bar controls */}
@@ -2342,6 +2406,26 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       </div>
 
                       <div className="flex items-center space-x-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setIsSheetsSettingsOpen(true)}
+                          className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs py-2 px-3.5 rounded-lg shadow-xs transition-all flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer animate-pulse"
+                          title="Integrasi & Hubungkan Database Google Sheets"
+                        >
+                          <Settings className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Pengaturan Sheets & Sesi</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleGenerateDummyLeads}
+                          disabled={isGeneratingDummy || loadingLeads}
+                          className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold text-xs py-2 px-3.5 rounded-lg shadow-xs transition-all flex items-center space-x-1.5 uppercase tracking-wider disabled:opacity-50 cursor-pointer"
+                          title="Generate 20 mock CRM entries dynamically matching target specs"
+                        >
+                          <Database className={`w-3.5 h-3.5 ${isGeneratingDummy ? 'animate-bounce' : ''}`} />
+                          <span>{isGeneratingDummy ? 'Mendata...' : 'Buat 20 Data Dummy'}</span>
+                        </button>
                         <button
                           onClick={exportToCSV}
                           disabled={leads.length === 0}
@@ -2361,6 +2445,17 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       </div>
                     </div>
 
+                    {/* Progress feedback for dummy generator with Google Spreadsheet sync state */}
+                    {dummySyncProgress && (
+                      <div className="bg-indigo-50 border-b border-indigo-100 px-5 py-2.5 flex items-center justify-between text-xs text-indigo-700 font-semibold font-sans">
+                        <div className="flex items-center space-x-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                          <span>{dummySyncProgress}</span>
+                        </div>
+                        <span className="text-[9px] uppercase tracking-widest bg-indigo-200/60 text-indigo-800 px-2 py-0.5 rounded-sm font-bold">Proses</span>
+                      </div>
+                    )}
+
                     {/* Sub-Tabs Selector inside Admin card */}
                     <div className="px-5 pt-1 bg-slate-50/50 border-b border-slate-100 flex items-center gap-1 overflow-x-auto scrollbar-none">
                       <button
@@ -2376,7 +2471,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                         }`}
                       >
                         <User className="w-3.5 h-3.5 text-indigo-500" />
-                        <span>CRM & Prospek ({leads.filter(l => !l.isDealed).length})</span>
+                        <span>CRM & Prospek ({leads.filter(l => !l.isPaid).length})</span>
                       </button>
                       
                       <button
@@ -2392,7 +2487,23 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                         }`}
                       >
                         <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>Manajemen Order ({leads.filter(l => l.isDealed).length})</span>
+                        <span>Manajemen Order ({leads.filter(l => l.isPaid).length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('canvasing');
+                          setSelectedAdminLead(null);
+                        }}
+                        className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center space-x-1.5 focus:outline-none whitespace-nowrap cursor-pointer ${
+                          adminSubTab === 'canvasing'
+                            ? 'text-indigo-600 border-indigo-600 font-sans'
+                            : 'text-slate-500 border-transparent hover:text-slate-700 font-medium font-sans'
+                        }`}
+                      >
+                        <Building className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Canvasing B2B ({canvasingContacts.length})</span>
                       </button>
 
                       <button
@@ -2413,14 +2524,16 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                     </div>
 
                     {/* Rendering dynamic content based on sub-tab */}
-                    {adminSubTab !== 'insights' && (
+                    {(adminSubTab === 'leads' || adminSubTab === 'orders' || adminSubTab === 'canvasing') && (
                       <div className="px-5 py-3 border-b border-slate-100 bg-white">
                         <input
                           type="text"
                           placeholder={
                             adminSubTab === 'leads'
                               ? "Cari prospek CRM berdasarkan nama, whatsapp, ID, atau target bahasa..."
-                              : "Cari order deal aktif berdasarkan nama klien, whatsapp, ID, atau target bahasa..."
+                              : adminSubTab === 'orders'
+                                ? "Cari order deal aktif berdasarkan nama klien, whatsapp, ID, atau target bahasa..."
+                                : "Cari kontak canvasing korporat berdasarkan nama perusahaan, nama PIC, nomor surat, atau kategori..."
                           }
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
@@ -2611,7 +2724,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                             );
                           })()}
                         </div>
-                      ) : filteredLeads.length === 0 ? (
+                      ) : (adminSubTab !== 'canvasing' && filteredLeads.length === 0) ? (
                         /* EMPTY DATABASE STATE */
                         <div className="h-56 flex flex-col items-center justify-center space-y-2 text-slate-500 p-8">
                           <FileText className="w-8 h-8 text-slate-300" />
@@ -2623,10 +2736,10 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                         <table className="w-full text-left border-collapse table-fixed">
                           <thead>
                             <tr className="bg-slate-50 tracking-wider text-[10px] font-bold text-slate-450 uppercase border-b border-slate-100">
-                              <th className="py-3 px-4 w-1/3">Klien / Tanggal Masuk</th>
-                              <th className="py-3 px-4 w-1/4">Evaluasi Bahasa & AI</th>
-                              <th className="py-3 px-4 w-1/4">Perkiraan Biaya</th>
-                              <th className="py-3 px-4 text-right w-1/4">Aksi Hubungi & Deal</th>
+                              <th className="py-3 px-4 w-[24%]">Klien / Tanggal Masuk</th>
+                              <th className="py-3 px-4 w-[20%]">Evaluasi Bahasa & AI</th>
+                              <th className="py-3 px-4 w-[18%]">Perkiraan Biaya</th>
+                              <th className="py-3 px-4 text-right w-[38%]">Aksi Dokumen & Hubungi</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 text-xs text-slate-650">
@@ -2639,9 +2752,13 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                                 onClick={() => setSelectedAdminLead(lead)}
                               >
                                 <td className="py-3.5 px-4 space-y-1 block text-left">
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="font-bold text-slate-800 text-xs">{lead.customerName}</span>
-                                    <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[9px] rounded font-bold">Leads</span>
+                                    {lead.isDealed ? (
+                                      <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[8.5px] rounded font-extrabold uppercase tracking-wide">Dealed</span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[8.5px] rounded font-bold">Leads</span>
+                                    )}
                                   </div>
                                   <span className="block text-[10px] font-mono font-bold text-slate-500">{lead.customerWhatsapp}</span>
                                   <span className="block text-[10px] text-slate-400 font-medium font-mono">
@@ -2664,21 +2781,55 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                                 <td className="py-3.5 px-4 space-y-1 font-mono text-left">
                                   <span className="block text-slate-700 font-bold">{lead.calculatedStandardPages} Hal TNR</span>
                                   <span className="block text-xs font-bold text-indigo-605">
-                                    Rp {(lead.grandTotalCost ?? lead.totalTranslationCost ?? 0).toLocaleString('id-ID')}
+                                    Rp {(lead.dealFinalPrice ?? lead.grandTotalCost ?? lead.totalTranslationCost ?? 0).toLocaleString('id-ID')}
                                   </span>
                                 </td>
 
                                 <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                  <div className="flex items-center justify-end gap-1.5">
+                                  <div className="flex items-center justify-end gap-1 flex-wrap">
+                                    {/* Penawaran & Invoice Generator Actions */}
                                     <button
                                       type="button"
-                                      onClick={() => handleToggleDeal(lead, true)}
-                                      className="p-1.5 px-2 bg-indigo-50/80 hover:bg-indigo-600 text-indigo-800 hover:text-white rounded-lg border border-indigo-200 hover:border-indigo-600 transition-all font-bold text-[10px] flex items-center space-x-0.5 cursor-pointer"
-                                      title="Tandai Klien Menyetujui Order (Deal)"
+                                      onClick={() => setQuotationModalLead(lead)}
+                                      className="p-1 px-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded border border-indigo-200 transition-all text-[9.5px] font-bold flex items-center space-x-0.5 cursor-pointer shadow-xs"
+                                      title="Lihat & Cetak Surat Penawaran Resmi (Quotation)"
                                     >
-                                      <Check className="w-3 h-3" />
-                                      <span>Deal</span>
+                                      <FileText className="w-2.5 h-2.5" />
+                                      <span>Penawaran</span>
                                     </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setInvoiceModalLead(lead)}
+                                      className="p-1 px-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded border border-emerald-200 transition-all text-[9.5px] font-bold flex items-center space-x-0.5 cursor-pointer shadow-xs"
+                                      title="Lihat & Cetak Surat Faktur Tagihan (Invoice)"
+                                    >
+                                      <Receipt className="w-2.5 h-2.5" />
+                                      <span>Invoice</span>
+                                    </button>
+
+                                    {/* Status Transition buttons */}
+                                    {lead.isDealed ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMarkasPaid(lead, true)}
+                                        className="p-1 px-1.5 bg-amber-100 hover:bg-emerald-650 text-amber-950 hover:text-white rounded border border-amber-300 transition-all font-bold text-[9.5px] flex items-center space-x-0.5 cursor-pointer"
+                                        title="Konfirmasi pembayaran lunas diterima, geser ke Manajemen Order"
+                                      >
+                                        <CheckCircle className="w-2.5 h-2.5" />
+                                        <span>Tandai Lunas</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleDeal(lead, true)}
+                                        className="p-1 px-1.5 bg-slate-100 hover:bg-indigo-600 text-slate-800 hover:text-white rounded border border-slate-300 hover:border-indigo-600 transition-all font-semibold text-[9.5px] flex items-center space-x-0.5 cursor-pointer"
+                                        title="Tandai Klien Menyetujui Order (Deal)"
+                                      >
+                                        <Check className="w-2.5 h-2.5" />
+                                        <span>Deal</span>
+                                      </button>
+                                    )}
                                     
                                     <button
                                       type="button"
@@ -2686,7 +2837,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                                         const text = `Halo Kak ${lead.customerName}, kami dari AMPM Sworn Translator ingin menindaklajuti form permohonan penerjemah Kakak dengan kode estimasi ${lead.id}.\n\nTotal perkiraan biaya adalah Rp ${lead.grandTotalCost?.toLocaleString('id-ID')} untuk terjemahan ke ${lead.targetLanguage}.\n\nApakah sudah sesuai untuk kami buatkan Surat Penawaran Biaya resmi? Terima kasih.`;
                                         window.open(`https://wa.me/${lead.customerWhatsapp.replace(/[^0-9]/g, '')}/?text=${encodeURIComponent(text)}`, '_blank', 'noreferrer');
                                       }}
-                                      className="p-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-150 transition-all cursor-pointer"
+                                      className="p-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-150 transition-all cursor-pointer"
                                       title="Hubungi Prospek CRM"
                                     >
                                       <MessageSquare className="w-3.5 h-3.5" />
@@ -2695,7 +2846,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                                     <button
                                       type="button"
                                       onClick={() => deleteLead(lead.id)}
-                                      className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-150 rounded-lg transition-all cursor-pointer"
+                                      className="p-1 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-150 rounded transition-all cursor-pointer"
                                       title="Hapus Lead"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -2706,7 +2857,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                             ))}
                           </tbody>
                         </table>
-                      ) : (
+                      ) : adminSubTab === 'orders' ? (
                         /* TAB 2: ACTIVE DEALS & ORDERS WORKSPACE */
                         <table className="w-full text-left border-collapse table-fixed">
                           <thead>
@@ -2826,7 +2977,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                                             setDealDeadlineInput(lead.dealDeadline || '');
                                             setDealStatusInput(lead.dealStatus || 'Dalam Antrean');
                                             setDealPriceInput(lead.dealFinalPrice || lead.grandTotalCost);
-                                            setDealNotesInput(lead.orderNotes || '');
+                                            setDealNotesInput(lead.orderNotes || ''); setDealInvoiceItems(lead.invoiceItems || [{ id: 'trans-' + Date.now(), nama: 'Paket Dokumen ' + (lead.translationType === 'sworn' ? 'Kategori Sworn' : 'Kategori Reguler'), harga: lead.dealFinalPrice || lead.grandTotalCost, qty: 1 }]);
                                           }}
                                           className="p-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 transition"
                                           title="Ubah Rincian Deadline, Pembayaran, dan Catatan Internal"
@@ -2850,6 +3001,372 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                             })}
                           </tbody>
                         </table>
+                      ) : (
+                        /* TAB 3: B2B CANVASSING DIRECT SALES & PARTNERS DATABASE */
+                        <div className="p-5 space-y-5">
+                          {/* Header and Statistics summary */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 text-left">
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 font-sans">
+                                <Building className="w-4 h-4 text-blue-600" />
+                                Direktori Kontak Canvasing & Kemitraan Korporasi (B2B)
+                              </h3>
+                              <p className="text-[11px] text-slate-450 mt-1 font-sans">
+                                Kelola direktori perusahaan target, lacak nomor surat penawaran keluar, serta percepat konversi prospek B2B via WhatsApp & Email satu-klik.
+                              </p>
+                            </div>
+                            
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Toggle form and prefill a brand new unique nomorSurat on-demand
+                                const nextNum = canvasingContacts.length + 1;
+                                const formattedNum = `${String(nextNum).padStart(3, '0')}/AMPM/SP/V/2026`;
+                                setCanvasingNomorSuratInput(formattedNum);
+                                setIsAddingCanvasing(!isAddingCanvasing);
+                              }}
+                              className="self-start sm:self-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow-xs shrink-0"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>{isAddingCanvasing ? 'Tutup Form' : 'Tambah Kontak Baru'}</span>
+                            </button>
+                          </div>
+
+                          {/* Collapsible Form for Adding New Corporate Target */}
+                          {isAddingCanvasing && (
+                            <motion.form 
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              onSubmit={addCanvasingContact}
+                              className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-left shadow-sm"
+                            >
+                              <div className="space-y-1 col-span-1 md:col-span-2 lg:col-span-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Nama Perusahaan *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={canvasingNamaPerusahaanInput}
+                                  onChange={(e) => setCanvasingNamaPerusahaanInput(e.target.value)}
+                                  placeholder="Contoh: PT Nusantara Energy Prima"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Nama PIC (Optional)</label>
+                                <input
+                                  type="text"
+                                  value={canvasingNamaPicInput}
+                                  onChange={(e) => setCanvasingNamaPicInput(e.target.value)}
+                                  placeholder="Contoh: Bpk. Hermawan"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">No. Handphone / WhatsApp *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={canvasingNoTelpInput}
+                                  onChange={(e) => setCanvasingNoTelpInput(e.target.value)}
+                                  placeholder="Contoh: +628123456789"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Email Perusahaan</label>
+                                <input
+                                  type="email"
+                                  value={canvasingNoEmailInput}
+                                  onChange={(e) => setCanvasingNoEmailInput(e.target.value)}
+                                  placeholder="Contoh: procurement@perusahaan.com"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Kategori Perusahaan</label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsCreatingCompanyCategoryInstantly(!isCreatingCompanyCategoryInstantly)}
+                                    className="text-[9.5px] font-bold text-blue-600 hover:underline cursor-pointer"
+                                  >
+                                    {isCreatingCompanyCategoryInstantly ? 'Pilih List' : '+ Buat Instan'}
+                                  </button>
+                                </div>
+                                {isCreatingCompanyCategoryInstantly ? (
+                                  <div className="flex gap-1">
+                                    <input
+                                      type="text"
+                                      placeholder="Nama Kategori..."
+                                      value={instantCompanyCategoryInput}
+                                      onChange={(e) => setInstantCompanyCategoryInput(e.target.value)}
+                                      className="flex-1 px-2 py-1 rounded-lg border border-blue-300 bg-white text-xs focus:outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (!instantCompanyCategoryInput.trim()) return;
+                                        const currentCats = sheetsConfig?.kategoriPerusahaan || ["Teknologi & IT", "Hukum & Advokasi", "Migas & Pertambangan", "Keuangan & Perbankan", "Manufaktur & Pabrik", "Farmasi & Medis", "Pariwisata & Hotel", "Lain-lain"];
+                                        if (!currentCats.includes(instantCompanyCategoryInput.trim())) {
+                                          const updatedCats = [...currentCats, instantCompanyCategoryInput.trim()];
+                                          const updatedConfig = { ...sheetsConfig, googleSpreadsheetId: sheetsConfig?.googleSpreadsheetId || '', googleDirectSyncEnabled: !!sheetsConfig?.googleDirectSyncEnabled, kategoriPerusahaan: updatedCats };
+                                          await saveUpdatedAppConfig(updatedConfig);
+                                        }
+                                        setCanvasingKategoriInput(instantCompanyCategoryInput.trim());
+                                        setInstantCompanyCategoryInput('');
+                                        setIsCreatingCompanyCategoryInstantly(false);
+                                      }}
+                                      className="px-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold"
+                                    >
+                                      Ok
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <select
+                                    value={canvasingKategoriInput}
+                                    onChange={(e) => setCanvasingKategoriInput(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                  >
+                                    {(sheetsConfig?.kategoriPerusahaan || ["Teknologi & IT", "Hukum & Advokasi", "Migas & Pertambangan", "Keuangan & Perbankan", "Manufaktur & Pabrik", "Farmasi & Medis", "Pariwisata & Hotel", "Lain-lain"]).map((catName: string) => (
+                                      <option key={catName} value={catName}>🏢 {catName}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Nomor Surat Penawaran</label>
+                                <input
+                                  type="text"
+                                  value={canvasingNomorSuratInput}
+                                  onChange={(e) => setCanvasingNomorSuratInput(e.target.value)}
+                                  placeholder="Contoh: 016/AMPM/SP/V/2026"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1 col-span-1 md:col-span-2">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Deskripsi Proposal / Perihal Surat</label>
+                                <input
+                                  type="text"
+                                  value={canvasingSuratPenawaranInput}
+                                  onChange={(e) => setCanvasingSuratPenawaranInput(e.target.value)}
+                                  placeholder="Contoh: Penawaran Retainer Khusus Terjemahan Kontrak Kerja Sama & Dokumen Audit"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Respon Awal</label>
+                                <select
+                                  value={canvasingResponInput}
+                                  onChange={(e) => setCanvasingResponInput(e.target.value as any)}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                                >
+                                  <option value="Tidak Respon">⚪ Tidak Respon</option>
+                                  <option value="Follow Up">🟡 Follow Up</option>
+                                  <option value="Closing">🟢 Closing</option>
+                                </select>
+                              </div>
+
+                              <div className="col-span-1 md:col-span-2 lg:col-span-3 flex justify-end gap-2 pt-2 border-t border-slate-200 mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsAddingCanvasing(false)}
+                                  className="px-3 py-1.5 border border-slate-300 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                                <button
+                                  type="submit"
+                                  className="px-4 py-1.5 bg-blue-650 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition cursor-pointer"
+                                >
+                                  Simpan Target Canvasing
+                                </button>
+                              </div>
+                            </motion.form>
+                          )}
+
+                          {/* Target Database Info Panels */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+                            <div className="bg-slate-50 border border-slate-150 p-3 rounded-lg">
+                              <span className="block text-[10px] uppercase font-mono text-slate-450 leading-tight">Total Perusahaan</span>
+                              <span className="text-sm font-bold text-slate-805 tracking-tight mt-1 inline-block">
+                                {canvasingContacts.length} <span className="text-[10px] font-semibold text-slate-500">Corporate</span>
+                              </span>
+                            </div>
+                            <div className="bg-emerald-50 border border-emerald-150 p-3 rounded-lg">
+                              <span className="block text-[10px] uppercase font-mono text-emerald-800/80 leading-tight">Prospek Closing</span>
+                              <span className="text-sm font-bold text-emerald-805 tracking-tight mt-1 inline-block">
+                                {canvasingContacts.filter(c => c.respon === 'Closing').length} <span className="text-[10px] font-semibold text-emerald-700">Dealed</span>
+                              </span>
+                            </div>
+                            <div className="bg-amber-50 border border-amber-150 p-3 rounded-lg">
+                              <span className="block text-[10px] uppercase font-mono text-amber-800/80 leading-tight">Follow Up</span>
+                              <span className="text-sm font-bold text-amber-805 tracking-tight mt-1 inline-block">
+                                {canvasingContacts.filter(c => c.respon === 'Follow Up').length} <span className="text-[10px] font-semibold text-amber-700">Kontak</span>
+                              </span>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-150 p-3 rounded-lg">
+                              <span className="block text-[10px] uppercase font-mono text-slate-450 leading-tight">Tidak Ada Respon</span>
+                              <span className="text-sm font-bold text-slate-605 tracking-tight mt-1 inline-block">
+                                {canvasingContacts.filter(c => c.respon === 'Tidak Respon').length} <span className="text-[10px] font-semibold text-slate-500">Kontak</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Canvasing Table representation */}
+                          <div className="border border-slate-150 rounded-xl overflow-hidden shadow-xs bg-white">
+                            {filteredCanvasing.length === 0 ? (
+                              <div className="h-48 flex flex-col items-center justify-center space-y-1.5 p-6 text-slate-500 text-center">
+                                <Building className="w-7 h-7 text-slate-305" />
+                                <p className="text-xs font-semibold text-slate-700">Tidak ada kontak canvasing B2B ditemukan</p>
+                                <p className="text-[10.5px] text-slate-400">Gunakan kolom cari diatas atau klik "+ Tambah Kontak Baru"</p>
+                              </div>
+                            ) : (
+                              <table className="w-full text-left border-collapse table-fixed">
+                                <thead>
+                                  <tr className="bg-slate-50 border-b border-slate-150 text-[10px] uppercase font-mono text-slate-500 leading-tight">
+                                    <th className="py-2.5 px-3 w-[5%] text-center">No</th>
+                                    <th className="py-2.5 px-3 w-[15%]">Nomor Surat</th>
+                                    <th className="py-2.5 px-3 w-[22%]">Perusahaan & PIC</th>
+                                    <th className="py-2.5 px-3 w-[18%]">Kategori & Kontak</th>
+                                    <th className="py-2.5 px-3 w-[23%]">Isi Surat Penawaran</th>
+                                    <th className="py-2.5 px-3 w-[17%] text-right">Aksi & Respon</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                                  {filteredCanvasing.map((contact, index) => {
+                                    // Pre-fill text Whatsapp
+                                    const textWA = `Halo Bapak/Ibu ${contact.namaPic || 'Direktur Perusahaan'} di ${contact.namaPerusahaan},\n\nKami dari AMPM Sworn Translator Specialist ingin menindaklanjuti Penawaran Resmi kami ${contact.nomorSurat} perihal: "${contact.suratPenawaran}".\n\nApakah ada kebutuhan penerjemahan dokumen tersumpah resmi demi kebutuhan audit, bisnis ekspor-impor, atau legalisasi kedutaan dalam waktu dekat?\n\nKami siap memberikan penawaran harga kemitraan korporasi terbaik. Terima kasih.`;
+                                    
+                                    // Prefill Email
+                                    const emailSubject = `Penawaran Resmi Jasa Penerjemah Sworn Resmi - AMPM Sworn Translator (${contact.nomorSurat})`;
+                                    const emailBody = `Yth. Bapak/Ibu ${contact.namaPic || 'Direktur Perusahaan'} di tempat,\n\nDengan hormat,\nBersama surat ini kami mengirimkan proposal Penawaran Resmi (${contact.nomorSurat}) perihal "${contact.suratPenawaran}" dari PT AMPM Sworn Translator.\n\nKami siap melayani kebutuhan alih bahasa tersumpah (Dokumen Notaris, Akta, Laporan Pajak/Audit) maupun legalisasi Kemenlu/Kemenkumham & Kedutaan asing untuk perusahaan Bapak/Ibu.\n\nApabila memerlukan informasi lebih lanjut, silakan hubungi kami di WhatsApp ini.\n\nHormat kami,\nLayanan Pelanggan AMPM Sworn Translator`;
+                                    
+                                    const mailtoUrl = `mailto:${contact.noEmail || ''}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+
+                                    return (
+                                      <tr key={contact.id} className="hover:bg-slate-50/50 transition duration-150">
+                                        {/* No */}
+                                        <td className="py-3 px-3 text-center text-slate-400 font-mono font-bold">
+                                          {index + 1}
+                                        </td>
+
+                                        {/* Surat Number */}
+                                        <td className="py-3 px-3 font-mono font-bold text-slate-600 text-[10px] text-left">
+                                          {contact.nomorSurat}
+                                        </td>
+
+                                        {/* Company & PIC */}
+                                        <td className="py-3 px-3 text-left space-y-0.5">
+                                          <div className="font-bold text-slate-805 truncate" title={contact.namaPerusahaan}>
+                                            {contact.namaPerusahaan}
+                                          </div>
+                                          {contact.namaPic && (
+                                            <div className="text-[10px] text-slate-550 font-semibold flex items-center gap-1">
+                                              <User className="w-2.5 h-2.5 text-blue-500" />
+                                              <span>PIC: {contact.namaPic}</span>
+                                            </div>
+                                          )}
+                                        </td>
+
+                                        {/* Category & Phone */}
+                                        <td className="py-3 px-3 text-left space-y-1 text-[10.5px]">
+                                          <span className="inline-block px-1.5 py-0.5 bg-slate-100 text-slate-705 border border-slate-200 rounded text-[9.5px] font-extrabold uppercase scale-95 origin-left">
+                                            {contact.kategoriPerusahaan}
+                                          </span>
+                                          <div className="font-mono text-slate-505 select-all" title={contact.noTelp}>
+                                            {contact.noTelp}
+                                          </div>
+                                          {contact.noEmail && (
+                                            <div className="text-slate-400 truncate text-[9.5px] font-semibold" title={contact.noEmail}>
+                                              {contact.noEmail}
+                                            </div>
+                                          )}
+                                        </td>
+
+                                        {/* Quotation text */}
+                                        <td className="py-3 px-3 text-left text-slate-505 leading-normal text-[10.5px] italic font-sans break-words pr-4">
+                                          {contact.suratPenawaran}
+                                        </td>
+
+                                        {/* Actions / Buttons / Status */}
+                                        <td className="py-3 px-3 text-right space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                                          {/* Inline Status Dropdown selection */}
+                                          <div className="flex justify-end">
+                                            <select
+                                              value={contact.respon}
+                                              onChange={(e) => updateCanvasingRespon(contact.id, e.target.value as any)}
+                                              className={`px-1.5 py-1 rounded-md text-[9.5px] font-bold focus:outline-none border shadow-xs cursor-pointer text-center ${
+                                                contact.respon === 'Closing' 
+                                                  ? 'bg-emerald-100 border-emerald-300 text-emerald-800' 
+                                                  : contact.respon === 'Follow Up'
+                                                    ? 'bg-amber-100 border-amber-305 text-amber-900' 
+                                                    : 'bg-slate-100 border-slate-300 text-slate-700'
+                                              }`}
+                                            >
+                                              <option value="Tidak Respon">⚪ Tidak Respon</option>
+                                              <option value="Follow Up">🟡 Follow Up</option>
+                                              <option value="Closing">🟢 Closing</option>
+                                            </select>
+                                          </div>
+
+                                          {/* Direct follow-up messaging triggers */}
+                                          <div className="flex items-center justify-end gap-1 flex-wrap">
+                                            <button
+                                              type="button"
+                                              onClick={() => window.open(`https://wa.me/${contact.noTelp.replace(/[^0-9]/g, '')}/?text=${encodeURIComponent(textWA)}`, '_blank', 'noreferrer')}
+                                              className="p-1 px-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded border border-emerald-250 transition-all text-[9.5px] font-bold flex items-center space-x-0.5 cursor-pointer shadow-xs"
+                                              title="Kirim Surat Penawaran Resmi via WhatsApp"
+                                            >
+                                              <MessageSquare className="w-2.5 h-2.5" />
+                                              <span>WA</span>
+                                            </button>
+
+                                            {contact.noEmail ? (
+                                              <a
+                                                href={mailtoUrl}
+                                                className="p-1 px-1.5 bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white rounded border border-blue-250 transition-all text-[9.5px] font-bold flex items-center space-x-0.5 cursor-pointer shadow-xs"
+                                                title="Kirim Penawaran via Email"
+                                              >
+                                                <Send className="w-2.5 h-2.5" />
+                                                <span>Email</span>
+                                              </a>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                disabled
+                                                className="p-1 px-1.5 bg-slate-50 text-slate-300 rounded border border-slate-200 text-[9.5px] font-bold flex items-center space-x-0.5 cursor-not-allowed"
+                                                title="Email tidak dikonfigurasi"
+                                              >
+                                                <Send className="w-2.5 h-2.5" />
+                                                <span>Email</span>
+                                              </button>
+                                            )}
+
+                                            <button
+                                              type="button"
+                                              onClick={() => deleteCanvasingContact(contact.id)}
+                                              className="p-1 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-150 rounded transition-all cursor-pointer"
+                                              title="Hapus Kontak Target"
+                                            >
+                                              <Trash2 className="w-2.5 h-2.5" />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -3082,6 +3599,252 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
         )}
       </AnimatePresence>
 
+      {/* GOOGLE SHEETS & SESSION SETTINGS MODAL */}
+      <AnimatePresence>
+        {isSheetsSettingsOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl max-w-lg w-full border border-slate-150 shadow-2xl overflow-hidden flex flex-col text-left font-sans my-auto animate-fade-in"
+            >
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center space-x-2">
+                  <div className="p-2 bg-emerald-50 text-emerald-800 rounded-lg">
+                    <FileSpreadsheetIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-800 font-display">Pengaturan Google Sheets & Sesi</h3>
+                    <p className="text-[10px] text-slate-400 font-mono font-medium">Konfigurasi Sinkronisasi Database Prospek</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSheetsSettingsOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded bg-slate-100/50 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                {/* Simplified Google Sheet Integration Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 className="font-bold text-xs text-slate-705 uppercase tracking-wider font-sans">1. Integrasi Google Sheets</h4>
+                    <span className="inline-flex bg-emerald-50 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-emerald-100">
+                      Aktif & Direkomendasikan
+                    </span>
+                  </div>
+
+                  {/* Friendly Step-by-Step Info for laymen */}
+                  <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-150 space-y-2 text-left">
+                    <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide block">
+                      💡 Cara Pakai Sangat Mudah:
+                    </span>
+                    <ul className="text-[10px] text-slate-500 space-y-1.5 leading-relaxed font-semibold">
+                      <li className="flex items-start gap-1">
+                        <span className="text-indigo-600 font-bold">1.</span>
+                        <span>Hubungkan Google Drive toko Anda dengan menekan tombol Google di bawah.</span>
+                      </li>
+                      <li className="flex items-start gap-1">
+                        <span className="text-indigo-600 font-bold">2.</span>
+                        <span>Pilih nama file Google Sheets Anda dari dropdown, atau buat otomatis dengan klik buatan database baru.</span>
+                      </li>
+                      <li className="flex items-start gap-1">
+                        <span className="text-indigo-600 font-bold">3.</span>
+                        <span>Aktifkan "Direct Sync" agar data pesanan klien terkirim saat itu juga!</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {!gUser ? (
+                    <div className="space-y-4">
+                      <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
+                        Akun belum tersambung. Hubungkan akun Google Drive toko untuk menulis prospek ke spreadsheet excel secara langsung.
+                      </p>
+                      
+                      <button
+                        type="button"
+                        onClick={handleGoogleLogin}
+                        className="gsi-material-button w-full cursor-pointer hover:bg-slate-50 border border-slate-200 transition-all shadow-xs rounded-xl py-2 flex items-center justify-center bg-white"
+                      >
+                        <div className="gsi-material-button-state"></div>
+                        <div className="gsi-material-button-content-wrapper flex items-center gap-2">
+                          <div className="gsi-material-button-icon shrink-0">
+                            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ display: 'block', width: '20px', height: '20px' }}>
+                              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                              <path fill="none" d="M0 0h48v48H0z"></path>
+                            </svg>
+                          </div>
+                          <span className="gsi-material-button-contents text-xs font-bold text-slate-705">Hubungkan Akun Google Toko</span>
+                        </div>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Logged in indicator */}
+                      <div className="p-3 bg-indigo-50/50 rounded-xl flex items-center justify-between border border-indigo-100 text-left">
+                        <div className="flex items-center gap-2">
+                          {gUser.photoURL ? (
+                            <img src={gUser.photoURL} alt="Google" className="w-8 h-8 rounded-full border border-indigo-150" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs select-none">
+                              {gUser.displayName?.charAt(0) || 'U'}
+                            </div>
+                          )}
+                          <div className="text-left leading-none">
+                            <span className="block text-xs font-bold text-slate-800">{gUser.displayName || 'Akun Admin'}</span>
+                            <span className="block text-[9px] text-slate-405 mt-1">{gUser.email}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleGoogleLogout}
+                          className="p-1.5 text-rose-605 hover:text-rose-700 hover:bg-rose-50/50 rounded-lg transition duration-150 text-[10px] font-bold flex items-center space-x-1 cursor-pointer"
+                          title="Sign Out Google"
+                        >
+                          <LogOut className="w-3 h-3" />
+                          <span>Disconnect</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-3 text-left">
+                        {/* Selector sheet */}
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-bold text-slate-655 font-sans">Pilih Google Sheet Tujuan:</label>
+                          {isLoadingGSheets ? (
+                            <div className="flex items-center space-x-1.5 text-slate-450 py-1 text-xs font-medium">
+                              <Loader2 className="w-3 h-3 animate-spin text-indigo-600" />
+                              <span>Membaca daftar file...</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <select
+                                value={sheetsConfig.googleSpreadsheetId || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const updated = { ...sheetsConfig, googleSpreadsheetId: val };
+                                  setSheetsConfig(updated);
+                                  fetch('/api/sheet-config', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(updated)
+                                  });
+                                }}
+                                className="w-full px-3 py-2 rounded-lg border border-slate-205 bg-slate-50 text-slate-705 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer font-sans"
+                              >
+                                <option value="">-- Silakan Pilih File Excel Anda --</option>
+                                {gSpreadsheets.length > 0 ? (
+                                  gSpreadsheets.map(sh => (
+                                    <option key={sh.id} value={sh.id}>{sh.name}</option>
+                                  ))
+                                ) : (
+                                  <option disabled>Tidak ditemukan file spreadsheet di Drive</option>
+                                )}
+                              </select>
+
+                              <button
+                                type="button"
+                                onClick={handleCreateAutoSheet}
+                                disabled={isCreatingGSheet}
+                                className="w-full bg-slate-100 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-indigo-750 font-bold text-[11px] py-1.5 px-3 rounded-lg flex items-center justify-center space-x-1 transition-all disabled:opacity-50 cursor-pointer"
+                              >
+                                {isCreatingGSheet ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 text-indigo-600" /> : <Plus className="w-3.5 h-3.5" />}
+                                <span>{isCreatingGSheet ? 'Sedang Membuat...' : 'Buat Database Sheet Baru'}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Direct Sync enabled checkbox switch */}
+                        <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-150">
+                          <div className="space-y-0.5">
+                            <span className="block text-xs font-bold text-slate-800">Sinkron Otomatis (Direct Sync)</span>
+                            <span className="block text-[9px] text-slate-400 leading-relaxed font-semibold">Tulis otomatis tiap klien submit form</span>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={!!sheetsConfig.googleDirectSyncEnabled}
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                const updated = { ...sheetsConfig, googleDirectSyncEnabled: val };
+                                setSheetsConfig(updated);
+                                fetch('/api/sheet-config', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify(updated)
+                                });
+                              }}
+                              disabled={!sheetsConfig.googleSpreadsheetId}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-305 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-45"></div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Simple Admin Session Card to easily Logan / Logout session */}
+                <div className="border-t border-slate-100 pt-5 space-y-3">
+                  <h4 className="font-bold text-xs text-slate-705 uppercase tracking-wider font-sans">2. Sesi Kerja Administrator</h4>
+                  <div className="bg-slate-50 rounded-xl border border-slate-150 p-4 space-y-3.5 text-left font-sans">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5 text-slate-705">
+                        <Lock className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-xs font-bold font-sans">Sesi Kerja Administrator</span>
+                      </div>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Sesi Aktif"></span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
+                      Anda masuk sebagai <strong className="text-slate-800">admin</strong>. Keamanan sesi tersimpan di perangkat lokal Anda demi kerahasiaan client.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('Apakah Anda yakin ingin keluar dari sesi kerja Admin?')) {
+                          localStorage.removeItem('ampm_admin_logged_in');
+                          setIsAdminLoggedIn(false);
+                          setAdminUsername('');
+                          setAdminPassword('');
+                          setIsSheetsSettingsOpen(false);
+                        }
+                      }}
+                      className="w-full text-xs font-bold text-rose-600 hover:text-white bg-white hover:bg-rose-600 border border-slate-205 hover:border-rose-600 py-2 rounded-lg transition-all duration-150 flex items-center justify-center space-x-1 cursor-pointer"
+                    >
+                      <LogOut className="w-3 h-3" />
+                      <span>Keluar Sesi / Logout Admin</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsSheetsSettingsOpen(false)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition"
+                >
+                  Tutup Pengaturan
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 1. EDIT DEAL DETAILS MODAL */}
       <AnimatePresence>
         {dealEditLead && (
@@ -3135,10 +3898,286 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                   <input
                     type="number"
                     value={dealPriceInput}
-                    onChange={(e) => setDealPriceInput(e.target.value)}
+                    onChange={(e) => setDealPriceInput(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-lg border border-slate-205 text-slate-705 text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-indigo-600"
                   />
                   <p className="text-[9px] text-slate-400">Sesuaikan nominal deal akhir setelah potongan/diskon khusus klien.</p>
+                </div>
+
+                {/* Customizable Invoice Items Section */}
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-205 pb-1.5">
+                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1">
+                      <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                      Rincian Item Invoice / Tagihan
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingProductInstantly(!isAddingProductInstantly)}
+                      className="text-[9.5px] font-bold text-indigo-600 hover:underline cursor-pointer"
+                    >
+                      {isAddingProductInstantly ? 'Tutup Form' : '+ Buat Produk Instan'}
+                    </button>
+                  </div>
+
+                  {/* Inline New Product Instantly Form */}
+                  {isAddingProductInstantly && (
+                    <div className="bg-white rounded-lg p-2.5 border border-indigo-150 space-y-2 text-[11px]">
+                      <span className="block font-bold text-indigo-900 uppercase text-[9px] tracking-wide">📦 Buat Produk Baru Instan</span>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="col-span-2 space-y-0.5">
+                          <label className="text-[9px] font-semibold text-slate-505 uppercase">Nama Produk</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Jasa Legalisasi Kemenkumham"
+                            value={instantProductInputName}
+                            onChange={(e) => setInstantProductInputName(e.target.value)}
+                            className="w-full px-2 py-1 border border-slate-250 bg-slate-50 rounded text-xs focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <label className="text-[9px] font-semibold text-slate-505 uppercase">Harga Satuan (Rp)</label>
+                          <input
+                            type="number"
+                            placeholder="75000"
+                            value={instantProductInputPrice}
+                            onChange={(e) => setInstantProductInputPrice(Number(e.target.value))}
+                            className="w-full px-2 py-1 border border-slate-250 bg-slate-50 rounded text-xs focus:outline-none font-mono"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] font-semibold text-slate-505 uppercase">Kategori</label>
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingProductCategoryInstantly(!isAddingProductCategoryInstantly)}
+                              className="text-[8px] font-bold text-indigo-600 hover:underline"
+                            >
+                              {isAddingProductCategoryInstantly ? 'Batal' : '+ Kategori'}
+                            </button>
+                          </div>
+                          
+                          {isAddingProductCategoryInstantly ? (
+                            <div className="flex gap-1">
+                              <input
+                                type="text"
+                                placeholder="Nama Kategori..."
+                                value={instantProductCategoryName}
+                                onChange={(e) => setInstantProductCategoryName(e.target.value)}
+                                className="flex-1 px-1.5 py-0.5 border border-blue-250 bg-white rounded text-[11px] focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!instantProductCategoryName.trim()) return;
+                                  const currentCats = sheetsConfig?.kategoriProduk || [
+                                    { id: "cat-1", nama: "Sworn Translation" },
+                                    { id: "cat-2", nama: "Non-Sworn Translation" },
+                                    { id: "cat-3", nama: "Legalisasi & Apostille" }
+                                  ];
+                                  const newId = 'cat-' + Date.now();
+                                  const updatedCats = [...currentCats, { id: newId, nama: instantProductCategoryName.trim() }];
+                                  const updatedConfig = { 
+                                    ...sheetsConfig, 
+                                    googleSpreadsheetId: sheetsConfig?.googleSpreadsheetId || '', 
+                                    googleDirectSyncEnabled: !!sheetsConfig?.googleDirectSyncEnabled,
+                                    kategoriProduk: updatedCats 
+                                  };
+                                  await saveUpdatedAppConfig(updatedConfig);
+                                  setInstantProductInputCatId(newId);
+                                  setInstantProductCategoryName('');
+                                  setIsAddingProductCategoryInstantly(false);
+                                }}
+                                className="px-1.5 bg-indigo-600 text-white rounded text-[9px] font-bold"
+                              >
+                                Ok
+                              </button>
+                            </div>
+                          ) : (
+                            <select
+                              value={instantProductInputCatId}
+                              onChange={(e) => setInstantProductInputCatId(e.target.value)}
+                              className="w-full px-1.5 py-1 border border-slate-250 bg-slate-50 rounded text-xs focus:outline-none"
+                            >
+                              <option value="">-- Kategori --</option>
+                              {(sheetsConfig?.kategoriProduk || [
+                                { id: "cat-1", nama: "Sworn Translation" },
+                                { id: "cat-2", nama: "Non-Sworn Translation" },
+                                { id: "cat-3", nama: "Legalisasi & Apostille" }
+                              ]).map((cat: any) => (
+                                <option key={cat.id} value={cat.id}>{cat.nama}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-1.5 pt-1.5 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingProductInstantly(false)}
+                          className="px-2 py-1 text-slate-500 rounded text-[10px] font-bold hover:bg-slate-100"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!instantProductInputName.trim()) {
+                              alert('Nama produk wajib diisi.');
+                              return;
+                            }
+                            const currentProds = sheetsConfig?.produk || [
+                              { id: "prod-1", nama: "Sworn Inggris-Indonesia (Reguler)", harga: 75000, kategoriId: "cat-1" },
+                              { id: "prod-2", nama: "Sworn Inggris-Indonesia (Non-Reguler)", harga: 90000, kategoriId: "cat-1" }
+                            ];
+                            const newProdId = 'prod-' + Date.now();
+                            const newProd = {
+                              id: newProdId,
+                              nama: instantProductInputName.trim(),
+                              harga: Number(instantProductInputPrice) || 0,
+                              kategoriId: instantProductInputCatId || "cat-1"
+                            };
+                            const updatedProds = [...currentProds, newProd];
+                            const updatedConfig = {
+                              ...sheetsConfig,
+                              googleSpreadsheetId: sheetsConfig?.googleSpreadsheetId || '',
+                              googleDirectSyncEnabled: !!sheetsConfig?.googleDirectSyncEnabled,
+                              produk: updatedProds
+                            };
+                            await saveUpdatedAppConfig(updatedConfig);
+
+                            // Automatically add this newly created product to invoice items!
+                            const updatedItems = [...dealInvoiceItems, { id: 'item-' + Date.now(), nama: newProd.nama, harga: newProd.harga, qty: 1 }];
+                            setDealInvoiceItems(updatedItems);
+                            const newTotal = updatedItems.reduce((acc, c) => acc + (c.harga * c.qty), 0);
+                            setDealPriceInput(newTotal);
+
+                            // Reset state
+                            setInstantProductInputName('');
+                            setInstantProductInputPrice(0);
+                            setInstantProductInputCatId('');
+                            setIsAddingProductInstantly(false);
+                            alert(`Produk "${newProd.nama}" sukses dibuat dan ditambahkan ke Invoice!`);
+                          }}
+                          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold shadow-sm"
+                        >
+                          Simpan & Tambah
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of current Active Invoice Items in the editor */}
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {dealInvoiceItems.map((item, index) => (
+                      <div key={item.id || index} className="flex flex-col gap-1.5 p-2 bg-white rounded-lg border border-slate-205">
+                        <div className="flex gap-2">
+                          <div className="flex-1 space-y-0.5">
+                            <select
+                              className="w-full px-1.5 py-0.5 border border-slate-250 bg-slate-50 rounded text-[10.5px] font-semibold text-slate-805"
+                              value={sheetsConfig?.produk?.find((p: any) => p.nama === item.nama)?.id || ''}
+                              onChange={(e) => {
+                                const selectedId = e.target.value;
+                                const prodObj = sheetsConfig?.produk?.find((p: any) => p.id === selectedId);
+                                if (prodObj) {
+                                  const updated = [...dealInvoiceItems];
+                                  updated[index] = { ...updated[index], nama: prodObj.nama, harga: prodObj.harga };
+                                  setDealInvoiceItems(updated);
+                                  const newPrices = updated.reduce((sum, it) => sum + (it.harga * it.qty), 0);
+                                  setDealPriceInput(newPrices);
+                                }
+                              }}
+                            >
+                              <option value="">-- Pilih Templat Produk --</option>
+                              {(sheetsConfig?.produk || [
+                                { id: "prod-1", nama: "Sworn Inggris-Indonesia (Reguler)", harga: 75000 },
+                                { id: "prod-2", nama: "Sworn Inggris-Indonesia (Non-Reguler)", harga: 90000 }
+                              ]).map((p: any) => (
+                                <option key={p.id} value={p.id}>{p.nama} (Rp {p.harga.toLocaleString()})</option>
+                              ))}
+                            </select>
+                            
+                            <input
+                              type="text"
+                              value={item.nama}
+                              onChange={(e) => {
+                                const updated = [...dealInvoiceItems];
+                                updated[index] = { ...updated[index], nama: e.target.value };
+                                setDealInvoiceItems(updated);
+                              }}
+                              placeholder="Nama Item (Kustom)"
+                              className="w-full px-2 py-0.5 border border-slate-205 rounded text-xs focus:outline-none"
+                            />
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = dealInvoiceItems.filter((_, idx) => idx !== index);
+                              setDealInvoiceItems(updated);
+                              const newPrices = updated.reduce((sum, it) => sum + (it.harga * it.qty), 0);
+                              setDealPriceInput(newPrices);
+                            }}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 rounded p-1 h-fit self-center cursor-pointer border border-rose-105"
+                            title="Hapus Item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <div className="flex-1 flex gap-1 items-center">
+                            <span className="text-[10px] text-slate-500 font-mono">Harga (Rp):</span>
+                            <input
+                              type="number"
+                              value={item.harga}
+                              onChange={(e) => {
+                                const updated = [...dealInvoiceItems];
+                                updated[index] = { ...updated[index], harga: Number(e.target.value) || 0 };
+                                setDealInvoiceItems(updated);
+                                const newPrices = updated.reduce((sum, it) => sum + (it.harga * it.qty), 0);
+                                setDealPriceInput(newPrices);
+                              }}
+                              className="w-full px-1.5 py-0.5 border border-slate-205 rounded text-xs select-all font-semibold font-mono"
+                            />
+                          </div>
+                          
+                          <div className="w-20 flex gap-1 items-center">
+                            <span className="text-[10px] text-slate-505 font-mono">Qty:</span>
+                            <input
+                              type="number"
+                              value={item.qty}
+                              onChange={(e) => {
+                                const updated = [...dealInvoiceItems];
+                                updated[index] = { ...updated[index], qty: Number(e.target.value) || 1 };
+                                setDealInvoiceItems(updated);
+                                const newPrices = updated.reduce((sum, it) => sum + (it.harga * it.qty), 0);
+                                setDealPriceInput(newPrices);
+                              }}
+                              className="w-full px-1.5 py-0.5 border border-slate-205 rounded text-xs font-semibold font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2 justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...dealInvoiceItems, { id: 'item-' + Date.now(), nama: 'Item Kustom Baru', harga: 50000, qty: 1 }];
+                        setDealInvoiceItems(updated);
+                        const newPrices = updated.reduce((sum, it) => sum + (it.harga * it.qty), 0);
+                        setDealPriceInput(newPrices);
+                      }}
+                      className="text-[10.5px] px-2.5 py-1 border border-slate-300 hover:bg-slate-100 font-bold rounded-lg text-slate-700 transition"
+                    >
+                      + Tambah Item Kustom
+                    </button>
+                  </div>
                 </div>
 
                 {/* 3. Deal Status Option */}
@@ -3291,46 +4330,64 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-705">
-                      {/* Row 1: Translation fee */}
-                      <tr>
-                        <td className="py-3 px-3">
-                          <span className="block font-bold text-slate-800">Layanan Penerjemahan Dokumen {quotationModalLead.translationType === 'sworn' ? 'Tersumpah (Sworn)' : 'Biasa (Reguler)'}</span>
-                          <span className="block text-[10px] text-slate-400 font-medium">Format halaman standar A4 TNR 12 spasi 1.5 hasil akhir ({quotationModalLead.documentTypeDetected})</span>
-                        </td>
-                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">{quotationModalLead.calculatedStandardPages} Hal</td>
-                        <td className="py-3 px-3 text-right font-mono">Rp {(quotationModalLead.costPerPage ?? 0).toLocaleString('id-ID')}</td>
-                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">Rp {(quotationModalLead.totalTranslationCost ?? 0).toLocaleString('id-ID')}</td>
-                      </tr>
+                      {quotationModalLead.invoiceItems && quotationModalLead.invoiceItems.length > 0 ? (
+                        quotationModalLead.invoiceItems.map((item: any, idx: number) => (
+                          <tr key={item.id || idx}>
+                            <td className="py-3 px-3">
+                              <span className="block font-bold text-slate-805">{item.nama}</span>
+                              <span className="block text-[8.5px] text-slate-400 font-mono">Item #{idx + 1}</span>
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono font-semibold text-slate-600">{item.qty || 1} Pcs</td>
+                            <td className="py-3 px-3 text-right font-mono">Rp {(item.harga || 0).toLocaleString('id-ID')}</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-805">
+                              Rp {((item.harga || 0) * (item.qty || 1)).toLocaleString('id-ID')}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <>
+                          {/* Row 1: Translation fee */}
+                          <tr>
+                            <td className="py-3 px-3">
+                              <span className="block font-bold text-slate-800">Layanan Penerjemahan Dokumen {quotationModalLead.translationType === 'sworn' ? 'Tersumpah (Sworn)' : 'Biasa (Reguler)'}</span>
+                              <span className="block text-[10px] text-slate-400 font-medium">Format halaman standar A4 TNR 12 spasi 1.5 hasil akhir ({quotationModalLead.documentTypeDetected})</span>
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">{quotationModalLead.calculatedStandardPages} Hal</td>
+                            <td className="py-3 px-3 text-right font-mono">Rp {(quotationModalLead.costPerPage ?? 0).toLocaleString('id-ID')}</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">Rp {(quotationModalLead.totalTranslationCost ?? 0).toLocaleString('id-ID')}</td>
+                          </tr>
 
-                      {/* Row 2: Surcharge Speed tier fee */}
-                      {quotationModalLead.speedTier && quotationModalLead.speedTier !== 'normal' && (
-                        <tr>
-                          <td className="py-3 px-3 col-span-1">
-                            <span className="block font-bold text-slate-800">Surcharge Kecepatan (Layanan Kilat - {quotationModalLead.speedTier.toUpperCase()})</span>
-                            <span className="block text-[10px] text-slate-400 font-medium">Biaya percepatan masa pengerjaan hasil guna deadline mendesak</span>
-                          </td>
-                          <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">1 Ls</td>
-                          <td className="py-3 px-3 text-right font-mono">-</td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
-                            Rp {(quotationModalLead.translationType === 'sworn' ? 75000 : 45000).toLocaleString('id-ID')}
-                          </td>
-                        </tr>
-                      )}
+                          {/* Row 2: Surcharge Speed tier fee */}
+                          {quotationModalLead.speedTier && quotationModalLead.speedTier !== 'normal' && (
+                            <tr>
+                              <td className="py-3 px-3 col-span-1">
+                                <span className="block font-bold text-slate-800">Surcharge Kecepatan (Layanan Kilat - {quotationModalLead.speedTier.toUpperCase()})</span>
+                                <span className="block text-[10px] text-slate-400 font-medium">Biaya percepatan masa pengerjaan hasil guna deadline mendesak</span>
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">1 Ls</td>
+                              <td className="py-3 px-3 text-right font-mono">-</td>
+                              <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
+                                Rp {(quotationModalLead.translationType === 'sworn' ? 75000 : 45000).toLocaleString('id-ID')}
+                              </td>
+                            </tr>
+                          )}
 
-                      {/* Row 3: Add-on Apostille / legalisasi */}
-                      {(quotationModalLead.addonCost ?? 0) > 0 && (
-                        <tr>
-                          <td className="py-3 px-3">
-                            <span className="block font-bold text-slate-800">Layanan Pendukung Sertifikasi Tambahan</span>
-                            <span className="block text-[10px] text-slate-400 font-mono">
-                              Integrasi sertifikasi Kemenkumham/Apostille/Kemenlu {quotationModalLead.addons?.apostille ? 'Apostille ' : ''}
-                              {quotationModalLead.addons?.legalisation?.join(', ') ?? ''} {quotationModalLead.addons?.skck ? 'SKCK Polri' : ''}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">Terlampir</td>
-                          <td className="py-3 px-3 text-right font-mono">-</td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">Rp {(quotationModalLead.addonCost ?? 0).toLocaleString('id-ID')}</td>
-                        </tr>
+                          {/* Row 3: Add-on Apostille / legalisasi */}
+                          {(quotationModalLead.addonCost ?? 0) > 0 && (
+                            <tr>
+                              <td className="py-3 px-3">
+                                <span className="block font-bold text-slate-800">Layanan Pendukung Sertifikasi Tambahan</span>
+                                <span className="block text-[10px] text-slate-400 font-mono">
+                                  Integrasi sertifikasi Kemenkumham/Apostille/Kemenlu {quotationModalLead.addons?.apostille ? 'Apostille ' : ''}
+                                  {quotationModalLead.addons?.legalisation?.join(', ') ?? ''} {quotationModalLead.addons?.skck ? 'SKCK Polri' : ''}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">Terlampir</td>
+                              <td className="py-3 px-3 text-right font-mono">-</td>
+                              <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">Rp {(quotationModalLead.addonCost ?? 0).toLocaleString('id-ID')}</td>
+                            </tr>
+                          )}
+                        </>
                       )}
 
                       {/* Row 4: Grand total */}
@@ -3483,17 +4540,31 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-705">
-                      {/* Row 1: Core Deal Final Price */}
-                      <tr>
-                        <td className="py-3.5 px-3">
-                          <span className="block font-bold text-slate-800">Paket Dokumen {invoiceModalLead.translationType === 'sworn' ? 'Kategori Sworn (Tersumpah DKI)' : 'Kategori Reguler (Biasa Bisnis)'}</span>
-                          <span className="block text-[10px] text-slate-450 font-mono">Kode Estimasi: {invoiceModalLead.id} | File: {invoiceModalLead.fileName}</span>
-                        </td>
-                        <td className="py-3.5 px-3 text-center font-mono font-bold text-slate-600">{invoiceModalLead.calculatedStandardPages} Hal</td>
-                        <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-800">
-                          Rp {(invoiceModalLead.dealFinalPrice ?? invoiceModalLead.grandTotalCost ?? invoiceModalLead.totalTranslationCost ?? 0).toLocaleString('id-ID')}
-                        </td>
-                      </tr>
+                      {invoiceModalLead.invoiceItems && invoiceModalLead.invoiceItems.length > 0 ? (
+                        invoiceModalLead.invoiceItems.map((item: any, idx: number) => (
+                          <tr key={item.id || idx}>
+                            <td className="py-3 px-3 col-span-1">
+                              <span className="block font-bold text-slate-805">{item.nama}</span>
+                              <span className="block text-[8.5px] text-slate-400 font-mono">Item #{idx + 1}</span>
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono font-semibold text-slate-600">{item.qty || 1} x Rp {(item.harga || 0).toLocaleString('id-ID')}</td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-805">
+                              Rp {((item.harga || 0) * (item.qty || 1)).toLocaleString('id-ID')}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="py-3.5 px-3">
+                            <span className="block font-bold text-slate-800">Paket Dokumen {invoiceModalLead.translationType === 'sworn' ? 'Kategori Sworn (Tersumpah DKI)' : 'Kategori Reguler (Biasa Bisnis)'}</span>
+                            <span className="block text-[10px] text-slate-450 font-mono">Kode Estimasi: {invoiceModalLead.id} | File: {invoiceModalLead.fileName}</span>
+                          </td>
+                          <td className="py-3.5 px-3 text-center font-mono font-bold text-slate-600">{invoiceModalLead.calculatedStandardPages} Hal</td>
+                          <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-800">
+                            Rp {(invoiceModalLead.dealFinalPrice ?? invoiceModalLead.grandTotalCost ?? invoiceModalLead.totalTranslationCost ?? 0).toLocaleString('id-ID')}
+                          </td>
+                        </tr>
+                      )}
 
                       {/* Row 3: Grand total */}
                       <tr className="bg-slate-50 border-t-2 border-slate-200">

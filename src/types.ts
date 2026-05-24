@@ -37,10 +37,12 @@ export interface TranslationLead {
 
   // Order Management fields for Deal Status
   isDealed?: boolean;
+  isPaid?: boolean;
   dealDeadline?: string;
   dealStatus?: 'Dalam Antrean' | 'Pengerjaan Terjemah' | 'Proses Proofreading' | 'Penyegelan Tersumpah' | 'Selesai' | 'Dibatalkan';
   dealFinalPrice?: number;
   orderNotes?: string;
+  invoiceItems?: { id: string; nama: string; harga: number; qty: number }[];
 }
 
 export interface PricingRule {
@@ -67,6 +69,21 @@ export interface PricingRule {
 export interface GoogleSheetConfig {
   googleSpreadsheetId?: string;
   googleDirectSyncEnabled?: boolean;
+  kategoriPerusahaan?: string[];
+  kategoriProduk?: { id: string; nama: string }[];
+  produk?: { id: string; nama: string; harga: number; kategoriId: string }[];
+}
+
+export interface CanvasingContact {
+  id: string;
+  nomorSurat: string;
+  namaPerusahaan: string;
+  namaPic?: string;
+  noTelp: string;
+  noEmail?: string;
+  kategoriPerusahaan: string;
+  suratPenawaran: string;
+  respon: 'Tidak Respon' | 'Follow Up' | 'Closing';
 }
 
 export interface UploadedDoc {
