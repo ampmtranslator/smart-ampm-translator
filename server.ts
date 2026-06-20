@@ -154,11 +154,19 @@ app.post('/api/analyze-document', async (req, res) => {
       - Dokumen REGULER adala dokumen identitas pribadi standar berikut: KTP, Kartu Keluarga (KK), Akta Kelahiran, Akta Kematian, Paspor, Buku Nikah, atau Akta Nikah.
       - Dokumen NON REGULER adalah seluruh dokumen selain daftar di atas (misalnya: Ijazah, Rapor, Transkrip Nilai, Surat Perjanjian Kerja, Dokumen Perusahaan, MoU, dll).
 
-      Simulasi Halaman Penerjemahan Standar:
-      Format target hasil terjemahan adalah kertas A4, font Times New Roman ukuran 12 point, dengan spasi baris 1,5.
-      - Aturan konversi: Setiap 200 hingga 250 kata, atau sekitar 1500 karakter dengan spasi, dihitung sebagai 1 Halaman Hasil Terjemahan.
-      - Hitung total kata dan karakter teks asli dalam dokumen.
-      - Berdasarkan panjang teks tersebut, simulasikan dan tentukan jumlah HANYA berupa bilangan bulat (bulatkan ke atas jika bersisa, minimal 1 halaman) dari jumlah halaman terjemahan standar yang akan dihasilkan.
+      Simulasi Halaman Penerjemahan Standar (KRITIS):
+      Format target hasil terjemahan disimulasikan ketat di atas standar akademis/hukum fisik berikut:
+      - Paper Size: A4
+      - Font Family: Times New Roman
+      - Font Size: 12pt (Body text)
+      - Line Spacing: 1.5 lines
+      - Margins: Standard 1 inch (2.54 cm) on all sides.
+      - Aturan konversi fisik metrik: 1 Halaman Hasil Terjemahan = Maksimum 380 Kata (1 Page = Max 380 Words).
+
+      Langkah Penghitungan Halaman Hasil Terjemahan Standar:
+      1. Hitung total jumlah kata (Word Count) dan karakter dengan spasi (Character Count) di dalam seluruh teks asli dokumen.
+      2. Bagikan total jumlah kata tersebut dengan angka 380 (total_kata / 380) untuk mengestimasi exact page count hasil terjemahan standard (contoh: 1,450 kata / 380 = 3.8 halaman).
+      3. Jika hasilnya pecahan atau desimal (misalnya 1.1, 1.3, 3.8, dll), maka HAKIKATNYA Anda HARUS SELALU membulatkan desimal tersebut ke atas (CEILING) ke bilangan bulat terdekat (contoh: 3.1 halaman menjadi tepat 4 halaman standar; minimal adalah 1 halaman). Masukkan hasil pembulatan ke atas ini ke dalam variabel "simulatedPagesCount".
 
       Ekstrak ringkasan isi dokumen sebanyak 300-500 karakter sebagai tinjauan teks (text snippet).
 
@@ -170,7 +178,7 @@ app.post('/api/analyze-document', async (req, res) => {
         "wordCount": nilai_angka_jumlah_kata_dalam_dokumen,
         "charCount": nilai_angka_jumlah_karakter_dengan_spasi_dalam_dokumen,
         "simulatedPagesCount": nilai_angka_jumlah_halaman_hasil_simulasi_terjemahan_standar,
-        "explanation": "Penjelasan singkat dari mana kesimpulan kategori dan jumlah halaman simulasi tersebut diperoleh"
+        "explanation": "Penjelasan singkat dari mana kesimpulan kategori dan rincian langkah kalkulasi halaman diperoleh (seperti: total kata / 380 = ... dibulatkan ke atas menjadi ... halaman)"
       }
     `;
 

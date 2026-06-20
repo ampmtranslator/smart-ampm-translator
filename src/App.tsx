@@ -876,7 +876,7 @@ export default function App() {
               category: data.category === 'Non Reguler' ? 'Non Reguler' : 'Reguler',
               wordCount: data.wordCount || 0,
               charCount: data.charCount || 0,
-              simulatedPages: Math.max(1, data.simulatedPagesCount || 1),
+              simulatedPages: Math.max(1, Math.ceil((data.wordCount || 0) / 380) || data.simulatedPagesCount || 1),
               explanation: data.explanation || '',
               textSnippet: data.textSnippet || ''
             };
@@ -1809,38 +1809,62 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                         </h5>
                         
                         <div className="grid grid-cols-3 gap-3 text-center">
-                          <div className="p-2.5 bg-slate-50 rounded-xl space-y-1">
+                          <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                             <span className="block text-[10px] uppercase font-bold text-slate-400">Total Kata</span>
-                            <span className="block text-base font-bold text-slate-800 font-mono">
-                              {wordCount.toLocaleString('id-ID')}
-                            </span>
+                            <div className="flex items-center justify-center">
+                              <input
+                                type="number"
+                                min="0"
+                                value={wordCount}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  setWordCount(val);
+                                  setSimulatedPages(Math.ceil(val / 380) || 1);
+                                }}
+                                className="w-16 text-center bg-transparent border-b border-slate-200 focus:border-indigo-600 font-mono font-bold text-sm text-slate-800 p-0 focus:outline-none focus:ring-0"
+                              />
+                            </div>
                           </div>
                           
-                          <div className="p-2.5 bg-slate-50 rounded-xl space-y-1">
+                          <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                             <span className="block text-[10px] uppercase font-bold text-slate-400 font-mono">Karakter</span>
-                            <span className="block text-base font-bold text-slate-800 font-mono">
-                              {charCount.toLocaleString('id-ID')}
-                            </span>
+                            <div className="flex items-center justify-center">
+                              <input
+                                type="number"
+                                min="0"
+                                value={charCount}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  setCharCount(val);
+                                }}
+                                className="w-16 text-center bg-transparent border-b border-slate-200 focus:border-indigo-600 font-mono font-bold text-sm text-slate-800 p-0 focus:outline-none focus:ring-0"
+                              />
+                            </div>
                           </div>
 
-                          <div className="p-2.5 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1">
+                          <div className="p-2 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1">
                             <span className="block text-[10px] uppercase font-bold text-indigo-900">Simulasi Halaman</span>
-                            <div className="flex items-center justify-center space-x-1.5">
+                            <div className="flex items-center justify-center space-x-1">
                               <input
                                 type="number"
                                 min="1"
                                 value={simulatedPages}
                                 onChange={(e) => setSimulatedPages(Math.max(1, parseInt(e.target.value) || 1))}
-                                className="w-12 text-center bg-transparent border-b border-indigo-200 focus:border-indigo-600 font-mono font-bold text-base text-indigo-900 p-0 focus:outline-none"
+                                className="w-10 text-center bg-transparent border-b border-indigo-200 focus:border-indigo-600 font-mono font-bold text-base text-indigo-900 p-0 focus:outline-none focus:ring-0"
                               />
                               <span className="text-xs font-bold text-indigo-800">Hal</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="mt-3 flex items-start space-x-2 text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                          <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                          <p>{analysisExplanation}</p>
+                        <div className="mt-3 flex flex-col gap-1.5 text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                          <div className="flex items-start space-x-2">
+                            <Info className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
+                            <p className="font-sans leading-snug">{analysisExplanation || "Masukkan statistik teks di atas atau upload dokumen untuk mensimulasikan halaman otomatis."}</p>
+                          </div>
+                          <div className="border-t border-slate-200/80 pt-1.5 text-[10px] text-indigo-700/90 font-medium font-sans">
+                            💡 **Ketentuan Cetak**: 1 Halaman Standard = Maksimum **380 Kata** (Kertas A4, Times New Roman 12pt, Spasi 1.5, Margin 1 inci). Sisa desimal langsung dibulatkan ke atas.
+                          </div>
                         </div>
                       </div>
 
