@@ -1878,11 +1878,11 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
     document.body.removeChild(link);
   };
 
-  // Generate 20 high-quality dummy leads on the server with optional automatic Google Sheets direct synchronization
+  // Generate 30 high-quality dummy leads on the server with optional automatic Google Sheets direct synchronization
   const handleGenerateDummyLeads = async () => {
     if (isGeneratingDummy) return;
     setIsGeneratingDummy(true);
-    setDummySyncProgress("Membuat 20 data dummy di server...");
+    setDummySyncProgress("Membuat 30 data dummy di server...");
     
     try {
       const response = await fetch('/api/leads/generate-dummy', {
@@ -1899,7 +1899,7 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
         throw new Error(resData.error || 'Gagal menyimpan data dummy');
       }
 
-      setDummySyncProgress("20 Data dummy berhasil dibuat lokal!");
+      setDummySyncProgress("30 Data dummy berhasil dibuat lokal!");
       
       // Instantly load the new records in our local client-side state
       await fetchLeads();
@@ -1908,21 +1908,21 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
       const isGoogleSheetsSyncActive = sheetsConfig.googleSpreadsheetId && gToken;
       if (isGoogleSheetsSyncActive) {
         const wantsSheetSync = confirm(
-          "Berhasil membuat 20 data dummy CRM baru secara lokal!\n\nKami mendeteksi Anda saat ini terhubung ke Google Sheets.\nApakah Anda juga ingin mengunggah ke-20 data dummy ini ke Google Sheet Anda?"
+          "Berhasil membuat 30 data dummy CRM baru secara lokal!\n\nKami mendeteksi Anda saat ini terhubung ke Google Sheets.\nApakah Anda juga ingin mengunggah ke-30 data dummy ini ke Google Sheet Anda?"
         );
 
         if (wantsSheetSync) {
           let syncedCount = 0;
           for (let i = 0; i < resData.leads.length; i++) {
             const lead = resData.leads[i];
-            setDummySyncProgress(`Sinkronisasi Sheet (${i+1}/20): ${lead.customerName}...`);
+            setDummySyncProgress(`Sinkronisasi Sheet (${i+1}/30): ${lead.customerName}...`);
             const ok = await syncLeadToGoogleSheet(lead, true);
             if (ok) syncedCount++;
           }
-          alert(`Selesai! ${syncedCount} dari 20 data dummy berhasil disinkronkan ke Google Sheet Anda.`);
+          alert(`Selesai! ${syncedCount} dari 30 data dummy berhasil disinkronkan ke Google Sheet Anda.`);
         }
       } else {
-        alert("Sukses membuat 20 data dummy CRM baru secara lokal! Anda dapat langsung meninjau analitik di tab 'Insight Bisnis' dan menguji alur kerja order.");
+        alert("Sukses membuat 30 data dummy CRM baru secara lokal! Anda dapat langsung meninjau analitik di tab 'Insight Bisnis' dan menguji alur kerja order.");
       }
     } catch (err: any) {
       console.error(err);
@@ -3528,10 +3528,10 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                           onClick={handleGenerateDummyLeads}
                           disabled={isGeneratingDummy || loadingLeads}
                           className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold text-xs py-2 px-3.5 rounded-lg shadow-xs transition-all flex items-center space-x-1.5 uppercase tracking-wider disabled:opacity-50 cursor-pointer"
-                          title="Generate 20 mock CRM entries dynamically matching target specs"
+                          title="Generate 30 mock CRM entries dynamically matching target specs"
                         >
                           <Database className={`w-3.5 h-3.5 ${isGeneratingDummy ? 'animate-bounce' : ''}`} />
-                          <span>{isGeneratingDummy ? 'Mendata...' : 'Buat 20 Data Dummy'}</span>
+                          <span>{isGeneratingDummy ? 'Mendata...' : 'Buat 30 Data Dummy'}</span>
                         </button>
                         <button
                           onClick={exportToCSV}
