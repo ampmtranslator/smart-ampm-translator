@@ -217,129 +217,131 @@ const CANVASSING_FILE = path.join(DATA_DIR, 'canvasing.json');
 const VENDORS_FILE = path.join(DATA_DIR, 'vendors.json');
 
 // Ensure directories and files exist
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+if (!process.env.VERCEL) {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
 
-if (!fs.existsSync(LEADS_FILE)) {
-  fs.writeFileSync(LEADS_FILE, JSON.stringify([], null, 2));
-}
+  if (!fs.existsSync(LEADS_FILE)) {
+    fs.writeFileSync(LEADS_FILE, JSON.stringify([], null, 2));
+  }
 
-if (!fs.existsSync(CONFIG_FILE)) {
-  const initialConfig = {
-    googleSpreadsheetId: '',
-    googleDirectSyncEnabled: false,
-    kategoriPerusahaan: [
-      "Teknologi & IT",
-      "Hukum & Advokasi",
-      "Migas & Pertambangan",
-      "Keuangan & Perbankan",
-      "Manufaktur & Pabrik",
-      "Farmasi & Medis",
-      "Pariwisata & Hotel",
-      "Lain-lain"
-    ],
-    kategoriProduk: [
-      { id: "cat-1", nama: "Sworn Translation" },
-      { id: "cat-2", nama: "Non-Sworn Translation" },
-      { id: "cat-3", nama: "Legalisasi & Apostille" }
-    ],
-    produk: [
-      { id: "prod-1", nama: "Sworn Inggris-Indonesia (Reguler)", harga: 75000, kategoriId: "cat-1" },
-      { id: "prod-2", nama: "Sworn Inggris-Indonesia (Non-Reguler)", harga: 90000, kategoriId: "cat-1" },
-      { id: "prod-3", nama: "Non-Sworn Inggris (Non-Teknik)", harga: 30000, kategoriId: "cat-2" },
-      { id: "prod-4", nama: "Non-Sworn Inggris (Dokumen Teknik)", harga: 35000, kategoriId: "cat-2" },
-      { id: "prod-5", nama: "Apostille Kemenkumham & Kemenlu", harga: 700000, kategoriId: "cat-3" }
-    ]
-  };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(initialConfig, null, 2));
-}
-
-if (!fs.existsSync(CANVASSING_FILE)) {
-  const initialCanvasing = [
-    {
-      id: "CAN-001",
-      nomorSurat: "012/AMPM/SP/V/2026",
-      namaPerusahaan: "PT Solusi Teknologi Indonesia",
-      namaPic: "Andi Wijaya",
-      noTelp: "+6281234567890",
-      noEmail: "info@solusiteknologi.co.id",
-      kategoriPerusahaan: "Teknologi & IT",
-      suratPenawaran: "Penawaran Jasa Terjemah Dokumen Audit & Hukum",
-      respon: "Follow Up"
-    },
-    {
-      id: "CAN-002",
-      nomorSurat: "013/AMPM/SP/V/2026",
-      namaPerusahaan: "CV Agro Mandiri Nusantara",
-      namaPic: "Dewi Sartika",
-      noTelp: "+6287766554433",
-      noEmail: "contact@agromandiri.com",
-      kategoriPerusahaan: "Pertanian & Ekspor",
-      suratPenawaran: "Penawaran Terjemah Sertifikasi Halal & Fitofarmaka",
-      respon: "Tidak Respon"
-    },
-    {
-      id: "CAN-003",
-      nomorSurat: "014/AMPM/SP/V/2026",
-      namaPerusahaan: "PT Samudra Energi Pratama",
-      namaPic: "Irwan Hakim",
-      noTelp: "+6281122334455",
-      noEmail: "corsec@samudraenergi.com",
-      kategoriPerusahaan: "Energi & Pertambangan",
-      suratPenawaran: "Proposal Jasa Penerjemah Sworn Kontrak Kerja Sama",
-      respon: "Closing"
-    },
-    {
-      id: "CAN-004",
-      nomorSurat: "015/AMPM/SP/V/2026",
-      namaPerusahaan: "PT Global Logistik Indonesia",
-      namaPic: "Siti Rahma",
-      noTelp: "+6281987654321",
-      noEmail: "procurement@globallogistik.co.id",
-      kategoriPerusahaan: "Transportasi & Logistik",
-      suratPenawaran: "Penawaran Retainer Jasa Dokumen Kepabeanan",
-      respon: "Follow Up"
-    }
-  ];
-  fs.writeFileSync(CANVASSING_FILE, JSON.stringify(initialCanvasing, null, 2));
-}
-
-if (!fs.existsSync(VENDORS_FILE)) {
-  const initialVendors = [
-    {
-      id: "VND-001",
-      nama: "Anisa Rahmawati, M.Hum. (Sworn)",
-      alamat: "Jl. Margonda Raya No. 12, Depok, Jawa Barat",
-      noWa: "+6281299887766",
-      pricelist: [
-        { id: "vprod-1", namaProduk: "Sworn English-Indonesian (Legal)", hargaVendor: 45000 },
-        { id: "vprod-2", namaProduk: "Sworn Indonesian-English (Legal)", hargaVendor: 50000 },
-        { id: "vprod-3", namaProduk: "Proofreading & Editing (English)", hargaVendor: 20000 }
+  if (!fs.existsSync(CONFIG_FILE)) {
+    const initialConfig = {
+      googleSpreadsheetId: '',
+      googleDirectSyncEnabled: false,
+      kategoriPerusahaan: [
+        "Teknologi & IT",
+        "Hukum & Advokasi",
+        "Migas & Pertambangan",
+        "Keuangan & Perbankan",
+        "Manufaktur & Pabrik",
+        "Farmasi & Medis",
+        "Pariwisata & Hotel",
+        "Lain-lain"
+      ],
+      kategoriProduk: [
+        { id: "cat-1", nama: "Sworn Translation" },
+        { id: "cat-2", nama: "Non-Sworn Translation" },
+        { id: "cat-3", nama: "Legalisasi & Apostille" }
+      ],
+      produk: [
+        { id: "prod-1", nama: "Sworn Inggris-Indonesia (Reguler)", harga: 75000, kategoriId: "cat-1" },
+        { id: "prod-2", nama: "Sworn Inggris-Indonesia (Non-Reguler)", harga: 90000, kategoriId: "cat-1" },
+        { id: "prod-3", nama: "Non-Sworn Inggris (Non-Teknik)", harga: 30000, kategoriId: "cat-2" },
+        { id: "prod-4", nama: "Non-Sworn Inggris (Dokumen Teknik)", harga: 35000, kategoriId: "cat-2" },
+        { id: "prod-5", nama: "Apostille Kemenkumham & Kemenlu", harga: 700000, kategoriId: "cat-3" }
       ]
-    },
-    {
-      id: "VND-002",
-      nama: "Syihabuddin, S.S. (Sworn Mandarin)",
-      alamat: "Ruko Inkopal Blok B-18, Kelapa Gading, Jakarta Utara",
-      noWa: "+6281311223344",
-      pricelist: [
-        { id: "vprod-4", namaProduk: "Sworn Mandarin-Indonesian", hargaVendor: 120000 },
-        { id: "vprod-5", namaProduk: "Sworn Indonesian-Mandarin", hargaVendor: 135000 }
-      ]
-    },
-    {
-      id: "VND-003",
-      nama: "Rudi Hartono (Penerjemah Dokumen Teknik)",
-      alamat: "Griya Shanta Blok L-405, Lowokwaru, Malang",
-      noWa: "+6285644332211",
-      pricelist: [
-        { id: "vprod-6", namaProduk: "Translate Dokumen Manual Teknik (Inggris-Indo)", hargaVendor: 18000 },
-        { id: "vprod-7", namaProduk: "Translate Kontrak & Kerja Sama (Inggris-Indo)", hargaVendor: 22000 }
-      ]
-    }
-  ];
-  fs.writeFileSync(VENDORS_FILE, JSON.stringify(initialVendors, null, 2));
+    };
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(initialConfig, null, 2));
+  }
+
+  if (!fs.existsSync(CANVASSING_FILE)) {
+    const initialCanvasing = [
+      {
+        id: "CAN-001",
+        nomorSurat: "012/AMPM/SP/V/2026",
+        namaPerusahaan: "PT Solusi Teknologi Indonesia",
+        namaPic: "Andi Wijaya",
+        noTelp: "+6281234567890",
+        noEmail: "info@solusiteknologi.co.id",
+        kategoriPerusahaan: "Teknologi & IT",
+        suratPenawaran: "Penawaran Jasa Terjemah Dokumen Audit & Hukum",
+        respon: "Follow Up"
+      },
+      {
+        id: "CAN-002",
+        nomorSurat: "013/AMPM/SP/V/2026",
+        namaPerusahaan: "CV Agro Mandiri Nusantara",
+        namaPic: "Dewi Sartika",
+        noTelp: "+6287766554433",
+        noEmail: "contact@agromandiri.com",
+        kategoriPerusahaan: "Pertanian & Ekspor",
+        suratPenawaran: "Penawaran Terjemah Sertifikasi Halal & Fitofarmaka",
+        respon: "Tidak Respon"
+      },
+      {
+        id: "CAN-003",
+        nomorSurat: "014/AMPM/SP/V/2026",
+        namaPerusahaan: "PT Samudra Energi Pratama",
+        namaPic: "Irwan Hakim",
+        noTelp: "+6281122334455",
+        noEmail: "corsec@samudraenergi.com",
+        kategoriPerusahaan: "Energi & Pertambangan",
+        suratPenawaran: "Proposal Jasa Penerjemah Sworn Kontrak Kerja Sama",
+        respon: "Closing"
+      },
+      {
+        id: "CAN-004",
+        nomorSurat: "015/AMPM/SP/V/2026",
+        namaPerusahaan: "PT Global Logistik Indonesia",
+        namaPic: "Siti Rahma",
+        noTelp: "+6281987654321",
+        noEmail: "procurement@globallogistik.co.id",
+        kategoriPerusahaan: "Transportasi & Logistik",
+        suratPenawaran: "Penawaran Retainer Jasa Dokumen Kepabeanan",
+        respon: "Follow Up"
+      }
+    ];
+    fs.writeFileSync(CANVASSING_FILE, JSON.stringify(initialCanvasing, null, 2));
+  }
+
+  if (!fs.existsSync(VENDORS_FILE)) {
+    const initialVendors = [
+      {
+        id: "VND-001",
+        nama: "Anisa Rahmawati, M.Hum. (Sworn)",
+        alamat: "Jl. Margonda Raya No. 12, Depok, Jawa Barat",
+        noWa: "+6281299887766",
+        pricelist: [
+          { id: "vprod-1", namaProduk: "Sworn English-Indonesian (Legal)", hargaVendor: 45000 },
+          { id: "vprod-2", namaProduk: "Sworn Indonesian-English (Legal)", hargaVendor: 50000 },
+          { id: "vprod-3", namaProduk: "Proofreading & Editing (English)", hargaVendor: 20000 }
+        ]
+      },
+      {
+        id: "VND-002",
+        nama: "Syihabuddin, S.S. (Sworn Mandarin)",
+        alamat: "Ruko Inkopal Blok B-18, Kelapa Gading, Jakarta Utara",
+        noWa: "+6281311223344",
+        pricelist: [
+          { id: "vprod-4", namaProduk: "Sworn Mandarin-Indonesian", hargaVendor: 120000 },
+          { id: "vprod-5", namaProduk: "Sworn Indonesian-Mandarin", hargaVendor: 135000 }
+        ]
+      },
+      {
+        id: "VND-003",
+        nama: "Rudi Hartono (Penerjemah Dokumen Teknik)",
+        alamat: "Griya Shanta Blok L-405, Lowokwaru, Malang",
+        noWa: "+6285644332211",
+        pricelist: [
+          { id: "vprod-6", namaProduk: "Translate Dokumen Manual Teknik (Inggris-Indo)", hargaVendor: 18000 },
+          { id: "vprod-7", namaProduk: "Translate Kontrak & Kerja Sama (Inggris-Indo)", hargaVendor: 22000 }
+        ]
+      }
+    ];
+    fs.writeFileSync(VENDORS_FILE, JSON.stringify(initialVendors, null, 2));
+  }
 }
 
 // Lazy loaded Gemini API client

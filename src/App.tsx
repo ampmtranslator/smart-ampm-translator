@@ -221,6 +221,54 @@ export default function App() {
   const [newProdNamaInput, setNewProdNamaInput] = useState('');
   const [newProdHargaInput, setNewProdHargaInput] = useState<number>(0);
 
+  // Unified Excel/CSV Import & Manual Input States
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+  const [importTargetTab, setImportTargetTab] = useState<'leads' | 'orders' | 'invoices' | 'canvasing' | 'vendors' | 'agents' | null>(null);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; message: string } | null>(null);
+
+  const [isManualInputOpen, setIsManualInputOpen] = useState(false);
+  const [manualInputTab, setManualInputTab] = useState<'leads' | 'orders' | 'invoices' | 'canvasing' | 'vendors' | 'agents' | null>(null);
+
+  // Manual Lead Form States
+  const [manLeadCustomerName, setManLeadCustomerName] = useState('');
+  const [manLeadCustomerWhatsapp, setManLeadCustomerWhatsapp] = useState('');
+  const [manLeadCustomerEmail, setManLeadCustomerEmail] = useState('');
+  const [manLeadSourceLanguage, setManLeadSourceLanguage] = useState('Bahasa Indonesia');
+  const [manLeadTargetLanguage, setManLeadTargetLanguage] = useState('Inggris');
+  const [manLeadTranslationType, setManLeadTranslationType] = useState<'sworn' | 'non-sworn'>('sworn');
+  const [manLeadFileName, setManLeadFileName] = useState('dokumen_manual.pdf');
+  const [manLeadGrandTotalCost, setManLeadGrandTotalCost] = useState<number>(0);
+  const [manLeadStatus, setManLeadStatus] = useState('Pending');
+
+  // Manual Order Form States (extends Lead with Paid fields)
+  const [manOrderVendor, setManOrderVendor] = useState('');
+  const [manOrderProcess, setManOrderProcess] = useState('');
+  const [manOrderDealDeadline, setManOrderDealDeadline] = useState('');
+  const [manOrderNotes, setManOrderNotes] = useState('');
+  const [manOrderDealFinalPrice, setManOrderDealFinalPrice] = useState<number>(0);
+
+  // Manual Canvasing Form States
+  const [manCanvasingNomorSurat, setManCanvasingNomorSurat] = useState('');
+  const [manCanvasingNamaPerusahaan, setManCanvasingNamaPerusahaan] = useState('');
+  const [manCanvasingNamaPic, setManCanvasingNamaPic] = useState('');
+  const [manCanvasingNoTelp, setManCanvasingNoTelp] = useState('');
+  const [manCanvasingNoEmail, setManCanvasingNoEmail] = useState('');
+  const [manCanvasingKategori, setManCanvasingKategori] = useState('Teknologi & IT');
+  const [manCanvasingSuratPenawaran, setManCanvasingSuratPenawaran] = useState('');
+  const [manCanvasingRespon, setManCanvasingRespon] = useState<'Tidak Respon' | 'Follow Up' | 'Closing'>('Tidak Respon');
+
+  // Manual Vendor Form States
+  const [manVendorNama, setManVendorNama] = useState('');
+  const [manVendorAlamat, setManVendorAlamat] = useState('');
+  const [manVendorNoWa, setManVendorNoWa] = useState('');
+
+  // Manual Agent Form States
+  const [manAgentNama, setManAgentNama] = useState('');
+  const [manAgentTipe, setManAgentTipe] = useState<'personal' | 'perusahaan'>('personal');
+  const [manAgentNoWa, setManAgentNoWa] = useState('');
+  const [manAgentEmail, setManAgentEmail] = useState('');
+  const [manAgentDiskonPersen, setManAgentDiskonPersen] = useState<number>(0);
+
   // Fix Order / Work Order Modal states
   const [fixOrderModalLead, setFixOrderModalLead] = useState<TranslationLead | null>(null);
   const [selectedWorkOrderVendorId, setSelectedWorkOrderVendorId] = useState<string>('');
@@ -397,6 +445,403 @@ export default function App() {
       console.error('Error fetching agents:', e);
     } finally {
       setLoadingAgents(false);
+    }
+  };
+
+  const getCSVTemplate = (tab: string) => {
+    switch (tab) {
+      case 'leads':
+        return `customerName,customerWhatsapp,customerEmail,sourceLanguage,targetLanguage,translationType,fileName,grandTotalCost,status\n"Budi Hermawan","+628123456789","budi@gmail.com","Bahasa Indonesia","Inggris","sworn","Akte_Kelahiran.pdf",75000,"Pending"`;
+      case 'orders':
+        return `customerName,customerWhatsapp,customerEmail,sourceLanguage,targetLanguage,translationType,fileName,grandTotalCost,dealFinalPrice,status,vendor,process,dealDeadline,orderNotes\n"Mega Finansial","+628561122334","legal@megafinansial.co.id","Inggris","Bahasa Indonesia","non-sworn","Audit_Report.docx",1750000,1750000,"Pengerjaan Terjemah","Rudi Hartono","Sedang berjalan","2026-07-02","Klien butuh cepat"`;
+      case 'invoices':
+        return `customerName,customerWhatsapp,customerEmail,sourceLanguage,targetLanguage,translationType,fileName,grandTotalCost,status,isPaid\n"Siti Aminah","+628998877665","siti.aminah@yahoo.com","Bahasa Indonesia","Mandarin","sworn","Ijazah.pdf",820000,"Selesai",true`;
+      case 'canvasing':
+        return `nomorSurat,namaPerusahaan,namaPic,noTelp,noEmail,kategoriPerusahaan,suratPenawaran,respon\n"012/AMPM/SP/V/2026","PT Solusi Teknologi Indonesia","Andi Wijaya","+6281234567890","info@solusiteknologi.co.id","Teknologi & IT","Penawaran Jasa Jasa Hukum","Follow Up"`;
+      case 'vendors':
+        return `nama,alamat,noWa\n"Anisa Rahmawati","Jl. Margonda Raya No. 12, Depok","+6281299887766"`;
+      case 'agents':
+        return `nama,tipe,noWa,email,diskonPersen\n"Budi Pratama","personal","+6281234567001","budi@agent.com",10`;
+      default:
+        return '';
+    }
+  };
+
+  // CSV parsing function
+  const parseCSV = (text: string) => {
+    const lines = text.split(/\r?\n/);
+    if (lines.length === 0) return [];
+    
+    const firstLine = lines[0];
+    let delimiter = ',';
+    if (firstLine.includes(';')) delimiter = ';';
+    else if (firstLine.includes('\t')) delimiter = '\t';
+    
+    const headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, ''));
+    
+    const results = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const values: string[] = [];
+      let insideQuote = false;
+      let currentValue = '';
+      
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        if (char === '"') {
+          insideQuote = !insideQuote;
+        } else if (char === delimiter && !insideQuote) {
+          values.push(currentValue.trim().replace(/^"|"$/g, ''));
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      values.push(currentValue.trim().replace(/^"|"$/g, ''));
+      
+      const row: any = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] || '';
+      });
+      results.push(row);
+    }
+    return results;
+  };
+
+  const openExcelImport = (tab: 'leads' | 'orders' | 'invoices' | 'canvasing' | 'vendors' | 'agents') => {
+    setImportTargetTab(tab);
+    setImportProgress(null);
+    setIsExcelImportOpen(true);
+  };
+
+  const openManualInput = (tab: 'leads' | 'orders' | 'invoices' | 'canvasing' | 'vendors' | 'agents') => {
+    setManualInputTab(tab);
+    setIsManualInputOpen(true);
+    
+    // Reset inputs
+    setManLeadCustomerName('');
+    setManLeadCustomerWhatsapp('');
+    setManLeadCustomerEmail('');
+    setManLeadSourceLanguage('Bahasa Indonesia');
+    setManLeadTargetLanguage('Inggris');
+    setManLeadTranslationType('sworn');
+    setManLeadFileName('dokumen_manual.pdf');
+    setManLeadGrandTotalCost(0);
+    setManLeadStatus(tab === 'leads' ? 'Pending' : tab === 'orders' ? 'Pengerjaan Terjemah' : 'Selesai');
+
+    setManOrderVendor('');
+    setManOrderProcess('');
+    setManOrderDealDeadline('');
+    setManOrderNotes('');
+    setManOrderDealFinalPrice(0);
+
+    setManCanvasingNomorSurat('');
+    setManCanvasingNamaPerusahaan('');
+    setManCanvasingNamaPic('');
+    setManCanvasingNoTelp('');
+    setManCanvasingNoEmail('');
+    setManCanvasingKategori('Teknologi & IT');
+    setManCanvasingSuratPenawaran('');
+    setManCanvasingRespon('Tidak Respon');
+
+    setManVendorNama('');
+    setManVendorAlamat('');
+    setManVendorNoWa('');
+
+    setManAgentNama('');
+    setManAgentTipe('personal');
+    setManAgentNoWa('');
+    setManAgentEmail('');
+    setManAgentDiskonPersen(0);
+  };
+
+  const handleImportCSV = async (text: string) => {
+    if (!importTargetTab) return;
+    try {
+      const rows = parseCSV(text);
+      if (rows.length === 0) {
+        alert('File CSV kosong atau tidak memiliki baris data!');
+        return;
+      }
+
+      setImportProgress({ current: 0, total: rows.length, message: 'Memulai import...' });
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        setImportProgress({
+          current: i + 1,
+          total: rows.length,
+          message: `Mengimpor baris ${i + 1} dari ${rows.length}...`
+        });
+
+        try {
+          if (importTargetTab === 'leads' || importTargetTab === 'orders' || importTargetTab === 'invoices') {
+            const payload = {
+              customerName: row.customerName || row.namaKlien || row.customer_name || 'Klien Impor',
+              customerWhatsapp: row.customerWhatsapp || row.whatsapp || row.customer_whatsapp || '+62800000000',
+              customerEmail: row.customerEmail || row.email || row.customer_email || '',
+              sourceLanguage: row.sourceLanguage || row.bahasaAsal || row.source_language || 'Bahasa Indonesia',
+              targetLanguage: row.targetLanguage || row.bahasaTarget || row.target_language || 'Inggris',
+              translationType: (row.translationType || row.tipePenerjemahan || row.translation_type || 'sworn').toLowerCase() === 'non-sworn' ? 'non-sworn' : 'sworn',
+              fileName: row.fileName || row.namaFile || row.file_name || 'dokumen_impor.pdf',
+              fileSize: row.fileSize || row.ukuranFile || row.file_size || '1.0 MB',
+              grandTotalCost: parseFloat(row.grandTotalCost || row.totalBiaya || row.grand_total_cost || '0') || 0,
+              status: row.status || (importTargetTab === 'leads' ? 'Pending' : importTargetTab === 'orders' ? 'Pengerjaan Terjemah' : 'Selesai'),
+              isDealed: importTargetTab === 'orders' || importTargetTab === 'invoices' || (row.isDealed === 'true' || row.is_dealed === 'true' || row.isDealed === true),
+              isPaid: importTargetTab === 'orders' || (row.isPaid === 'true' || row.is_paid === 'true' || row.isPaid === true),
+              vendor: row.vendor || row.namaVendor || '',
+              process: row.process || row.progres || '',
+              dealDeadline: row.dealDeadline || row.deadline || '',
+              dealFinalPrice: parseFloat(row.dealFinalPrice || row.hargaDeal || row.deal_final_price || '0') || parseFloat(row.grandTotalCost || '0') || 0,
+              orderNotes: row.orderNotes || row.catatan || row.order_notes || ''
+            };
+
+            const res = await fetch('/api/leads', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              setLeads(prev => [data.lead, ...prev]);
+              successCount++;
+            } else {
+              failCount++;
+            }
+
+          } else if (importTargetTab === 'canvasing') {
+            const payload = {
+              nomorSurat: row.nomorSurat || row.noSurat || row.nomor_surat || `CANV-${Date.now()}`,
+              namaPerusahaan: row.namaPerusahaan || row.perusahaan || row.nama_perusahaan || 'Perusahaan Impor',
+              namaPic: row.namaPic || row.pic || row.nama_pic || '',
+              noTelp: row.noTelp || row.telp || row.no_telp || '+62800000000',
+              noEmail: row.noEmail || row.email || row.no_email || '',
+              kategoriPerusahaan: row.kategoriPerusahaan || row.kategori || row.kategori_perusahaan || 'Lain-lain',
+              suratPenawaran: row.suratPenawaran || row.surat || row.surat_penawaran || 'Penawaran Jasa Terjemah',
+              respon: row.respon || 'Tidak Respon'
+            };
+
+            const res = await fetch('/api/canvasing', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              setCanvasingContacts(prev => [data.contact, ...prev]);
+              successCount++;
+            } else {
+              failCount++;
+            }
+
+          } else if (importTargetTab === 'vendors') {
+            const payload = {
+              nama: row.nama || row.namaVendor || 'Vendor Impor',
+              alamat: row.alamat || '',
+              noWa: row.noWa || row.no_wa || row.whatsapp || '+62800000000',
+              pricelist: row.pricelist ? JSON.parse(row.pricelist) : []
+            };
+
+            const res = await fetch('/api/vendors', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              setVendors(prev => [data.vendor, ...prev]);
+              successCount++;
+            } else {
+              failCount++;
+            }
+
+          } else if (importTargetTab === 'agents') {
+            const payload = {
+              nama: row.nama || row.namaAgen || 'Agen Impor',
+              tipe: (row.tipe || row.tipeAgen || '').toLowerCase() === 'perusahaan' ? 'perusahaan' : 'personal',
+              noWa: row.noWa || row.no_wa || row.whatsapp || '+62800000000',
+              email: row.email || '',
+              diskonPersen: parseFloat(row.diskonPersen || row.diskon || row.diskon_persen || '0') || 0
+            };
+
+            const res = await fetch('/api/agents', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              setAgents(prev => [data.agent, ...prev]);
+              successCount++;
+            } else {
+              failCount++;
+            }
+          }
+        } catch (e) {
+          console.error(e);
+          failCount++;
+        }
+      }
+
+      alert(`Proses impor selesai!\nSukses: ${successCount} baris\nGagal: ${failCount} baris`);
+      setIsExcelImportOpen(false);
+      setImportProgress(null);
+    } catch (err: any) {
+      alert('Gagal mengimpor file CSV: ' + err.message);
+      setImportProgress(null);
+    }
+  };
+
+  const handleManualInputSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualInputTab) return;
+
+    try {
+      if (manualInputTab === 'leads' || manualInputTab === 'orders' || manualInputTab === 'invoices') {
+        if (!manLeadCustomerName || !manLeadCustomerWhatsapp) {
+          alert('Nama Klien & No. Whatsapp wajib diisi!');
+          return;
+        }
+
+        const payload = {
+          customerName: manLeadCustomerName,
+          customerWhatsapp: manLeadCustomerWhatsapp,
+          customerEmail: manLeadCustomerEmail,
+          sourceLanguage: manLeadSourceLanguage,
+          targetLanguage: manLeadTargetLanguage,
+          translationType: manLeadTranslationType,
+          fileName: manLeadFileName,
+          fileSize: '1.0 MB',
+          grandTotalCost: manLeadGrandTotalCost,
+          status: manLeadStatus,
+          isDealed: manualInputTab === 'orders' || manualInputTab === 'invoices',
+          isPaid: manualInputTab === 'orders',
+          vendor: manOrderVendor,
+          process: manOrderProcess,
+          dealDeadline: manOrderDealDeadline,
+          dealFinalPrice: manualInputTab === 'orders' ? (manOrderDealFinalPrice || manLeadGrandTotalCost) : 0,
+          orderNotes: manOrderNotes
+        };
+
+        const res = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setLeads(prev => [data.lead, ...prev]);
+          alert('Sukses menambahkan data manual baru!');
+          setIsManualInputOpen(false);
+        } else {
+          const err = await res.json();
+          throw new Error(err.error || 'Gagal menyimpan ke database');
+        }
+
+      } else if (manualInputTab === 'canvasing') {
+        if (!manCanvasingNamaPerusahaan || !manCanvasingNoTelp) {
+          alert('Nama Perusahaan & No. Telepon wajib diisi!');
+          return;
+        }
+
+        const payload = {
+          nomorSurat: manCanvasingNomorSurat || `CANV-${Date.now()}`,
+          namaPerusahaan: manCanvasingNamaPerusahaan,
+          namaPic: manCanvasingNamaPic,
+          noTelp: manCanvasingNoTelp,
+          noEmail: manCanvasingNoEmail,
+          kategoriPerusahaan: manCanvasingKategori,
+          suratPenawaran: manCanvasingSuratPenawaran || 'Penawaran Jasa Penerjemah Sworn',
+          respon: manCanvasingRespon
+        };
+
+        const res = await fetch('/api/canvasing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setCanvasingContacts(prev => [data.contact, ...prev]);
+          alert('Sukses menambahkan data canvasing baru!');
+          setIsManualInputOpen(false);
+        } else {
+          const err = await res.json();
+          throw new Error(err.error || 'Gagal menyimpan');
+        }
+
+      } else if (manualInputTab === 'vendors') {
+        if (!manVendorNama || !manVendorNoWa) {
+          alert('Nama Vendor & No. WhatsApp wajib diisi!');
+          return;
+        }
+
+        const payload = {
+          nama: manVendorNama,
+          alamat: manVendorAlamat,
+          noWa: manVendorNoWa,
+          pricelist: []
+        };
+
+        const res = await fetch('/api/vendors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setVendors(prev => [data.vendor, ...prev]);
+          alert('Sukses menambahkan vendor baru!');
+          setIsManualInputOpen(false);
+        } else {
+          const err = await res.json();
+          throw new Error(err.error || 'Gagal menyimpan');
+        }
+
+      } else if (manualInputTab === 'agents') {
+        if (!manAgentNama || !manAgentNoWa) {
+          alert('Nama Agen & No. WhatsApp wajib diisi!');
+          return;
+        }
+
+        const payload = {
+          nama: manAgentNama,
+          tipe: manAgentTipe,
+          noWa: manAgentNoWa,
+          email: manAgentEmail,
+          diskonPersen: manAgentDiskonPersen
+        };
+
+        const res = await fetch('/api/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setAgents(prev => [data.agent, ...prev]);
+          alert('Sukses menambahkan agen baru!');
+          setIsManualInputOpen(false);
+        } else {
+          const err = await res.json();
+          throw new Error(err.error || 'Gagal menyimpan');
+        }
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
     }
   };
 
@@ -2997,17 +3442,6 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                     }}
                     className="p-6 sm:p-8 space-y-4 bg-white"
                   >
-                    <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 flex flex-col gap-1 text-[11px] text-indigo-900 font-sans text-left">
-                      <div className="font-bold flex items-center gap-1">
-                        <Lock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                        <span>Kredensial Akses Admin Resmi:</span>
-                      </div>
-                      <div className="flex gap-4 mt-0.5 font-mono">
-                        <span>User: <strong className="text-indigo-950 font-sans">admin</strong></span>
-                        <span>Sandi: <strong className="text-indigo-950 font-sans font-mono text-[11px]">ampmadmin2026</strong></span>
-                      </div>
-                    </div>
-
                     {loginError && (
                       <div className="p-3.5 rounded-xl border border-rose-250 bg-rose-50 text-rose-805 text-xs font-semibold flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
@@ -3048,12 +3482,10 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                     </button>
 
                     <div className="pt-4 border-t border-slate-100 flex items-start gap-2 text-slate-550 leading-normal">
-                      <span className="text-base">💡</span>
-                      <div className="text-[11px] font-semibold text-slate-600 leading-relaxed bg-amber-50/60 p-3 rounded-xl border border-amber-100/80">
-                        <p className="font-extrabold text-amber-950 mb-0.5">Petunjuk Akses Akun:</p>
-                        Gunakan data masuk default di bawah ini:<br />
-                        • Username: <span className="font-mono font-bold text-indigo-750 bg-indigo-50 px-1 py-0.5 rounded">admin</span><br />
-                        • Password: <span className="font-mono font-bold text-indigo-750 bg-indigo-50 px-1 py-0.5 rounded">ampmadmin2026</span>
+                      <span className="text-base">🔐</span>
+                      <div className="text-[11px] font-semibold text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <p className="font-bold text-slate-900 mb-0.5">Sesi Terenkripsi & Aman</p>
+                        Gunakan akun administrator terdaftar untuk mengakses dashboard CRM. Jika Anda lupa kredensial atau memerlukan hak akses baru, silakan hubungi tim administrasi sistem.
                       </div>
                     </div>
                   </form>
@@ -3248,26 +3680,46 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
 
                     {/* Rendering dynamic content based on sub-tab */}
                     {(adminSubTab === 'leads' || adminSubTab === 'orders' || adminSubTab === 'canvasing' || adminSubTab === 'invoices' || adminSubTab === 'vendors' || adminSubTab === 'agents') && (
-                      <div className="px-5 py-3 border-b border-slate-100 bg-white">
-                        <input
-                          type="text"
-                          placeholder={
-                            adminSubTab === 'leads'
-                              ? "Cari prospek CRM berdasarkan nama, whatsapp, ID, atau target bahasa..."
-                              : adminSubTab === 'orders'
-                                ? "Cari order deal aktif berdasarkan nama klien, whatsapp, ID, atau target bahasa..."
-                                : adminSubTab === 'invoices'
-                                  ? "Cari invoice berdasarkan nama klien, whatsapp, ID, atau target bahasa..."
-                                  : adminSubTab === 'vendors'
-                                    ? "Cari vendor berdasarkan nama, nomor WA, alamat..."
-                                    : adminSubTab === 'agents'
-                                      ? "Cari agen berdasarkan nama, nomor WA, email, tipe..."
-                                      : "Cari kontak canvasing korporat berdasarkan nama perusahaan, nama PIC, nomor surat, atau kategori..."
-                          }
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/20 focus:bg-white text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all font-sans"
-                        />
+                      <div className="px-5 py-3 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            placeholder={
+                              adminSubTab === 'leads'
+                                ? "Cari prospek CRM berdasarkan nama, whatsapp, ID, atau target bahasa..."
+                                : adminSubTab === 'orders'
+                                  ? "Cari order deal aktif berdasarkan nama klien, whatsapp, ID, atau target bahasa..."
+                                  : adminSubTab === 'invoices'
+                                    ? "Cari invoice berdasarkan nama klien, whatsapp, ID, atau target bahasa..."
+                                    : adminSubTab === 'vendors'
+                                      ? "Cari vendor berdasarkan nama, nomor WA, alamat..."
+                                      : adminSubTab === 'agents'
+                                        ? "Cari agen berdasarkan nama, nomor WA, email, tipe..."
+                                        : "Cari kontak canvasing korporat berdasarkan nama perusahaan, nama PIC, nomor surat, atau kategori..."
+                            }
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/20 focus:bg-white text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all font-sans"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openExcelImport(adminSubTab)}
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer border border-emerald-200"
+                          >
+                            <UploadCloud className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Import Excel/CSV</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openManualInput(adminSubTab)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-sm hover:shadow"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-white" />
+                            <span>Tambah Manual</span>
+                          </button>
+                        </div>
                       </div>
                     )}
 
@@ -6330,6 +6782,565 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
             </div>
           );
         })()}
+      </AnimatePresence>
+
+      {/* 5. EXCEL/CSV IMPORT MODAL */}
+      <AnimatePresence>
+        {isExcelImportOpen && importTargetTab && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden font-sans text-left border border-slate-100 flex flex-col my-8"
+            >
+              {/* Header */}
+              <div className="bg-emerald-850 text-white p-5 flex items-center justify-between shrink-0">
+                <div className="flex items-center space-x-2">
+                  <UploadCloud className="w-5 h-5 text-emerald-300" />
+                  <div>
+                    <h4 className="text-sm font-bold font-display">Import Data Excel / CSV</h4>
+                    <p className="text-[10px] text-emerald-200 font-medium">Impor data dalam jumlah besar sekaligus ke menu <strong className="capitalize">{importTargetTab === 'leads' ? 'CRM & Prospek' : importTargetTab === 'orders' ? 'Manajemen Order' : importTargetTab === 'invoices' ? 'Manajemen Invoice' : importTargetTab === 'canvasing' ? 'Canvasing B2B' : importTargetTab === 'vendors' ? 'Manajemen Vendor' : 'Manajemen Agen B2B'}</strong></p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsExcelImportOpen(false)}
+                  className="text-white hover:text-emerald-100 p-1 bg-white/10 hover:bg-white/20 rounded-lg cursor-pointer transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-slate-700">
+                  <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Langkah 1: Gunakan Template Kolom yang Sesuai</span>
+                  <p className="text-[11px] leading-relaxed">
+                    Pastikan susunan kolom file Excel/CSV Anda sesuai dengan urutan template di bawah ini agar data dapat teridentifikasi secara sempurna oleh database.
+                  </p>
+                  <div className="p-3 bg-white border border-slate-200 rounded-lg text-left">
+                    <span className="block text-[10px] font-bold text-emerald-700 font-mono break-all leading-normal select-all bg-emerald-50/50 p-2 rounded">
+                      {getCSVTemplate(importTargetTab).split('\n')[0]}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(getCSVTemplate(importTargetTab));
+                      alert('Template CSV berhasil disalin ke clipboard!');
+                    }}
+                    className="w-full py-1.5 px-3 bg-white border border-slate-250 hover:bg-slate-50 text-[10px] font-bold text-slate-700 rounded-lg transition flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                  >
+                    <Copy className="w-3 h-3 text-slate-550" />
+                    <span>Salin Contoh Isi File Lengkap (CSV Template)</span>
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Langkah 2: Pilih File Excel / CSV</span>
+                  
+                  {importProgress ? (
+                    <div className="p-8 bg-slate-50/50 rounded-xl border border-slate-200 text-center space-y-3">
+                      <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mx-auto" />
+                      <p className="text-xs font-semibold text-slate-700">{importProgress.message}</p>
+                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-indigo-600 h-full transition-all duration-300" 
+                          style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 font-mono">
+                        {importProgress.current} / {importProgress.total} Baris diproses
+                      </span>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-slate-50/40 hover:bg-emerald-50/10 p-8 rounded-xl cursor-pointer transition-all">
+                      <UploadCloud className="w-8 h-8 text-slate-400 mb-2" />
+                      <span className="text-xs font-bold text-slate-700">Pilih atau Seret file .CSV / .TXT</span>
+                      <span className="text-[10px] text-slate-400 font-medium mt-1">Mendukung ekspor tabel Excel atau Google Sheets</span>
+                      <input
+                        type="file"
+                        accept=".csv,.txt"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const text = event.target?.result as string;
+                              if (text) {
+                                handleImportCSV(text);
+                              }
+                            };
+                            reader.readAsText(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-slate-50 p-4 border-t border-slate-100 flex items-center justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsExcelImportOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl cursor-pointer transition-all"
+                >
+                  Batal / Selesai
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 6. MANUAL DATA INPUT MODAL */}
+      <AnimatePresence>
+        {isManualInputOpen && manualInputTab && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden font-sans text-left border border-slate-100 flex flex-col my-8"
+            >
+              {/* Header */}
+              <div className="bg-indigo-900 text-white p-5 flex items-center justify-between shrink-0">
+                <div className="flex items-center space-x-2">
+                  <Plus className="w-5 h-5 text-indigo-300" />
+                  <div>
+                    <h4 className="text-sm font-bold font-display">Tambah Data Manual Baru</h4>
+                    <p className="text-[10px] text-indigo-200 font-medium">Input data per baris secara manual ke menu <strong className="capitalize">{manualInputTab === 'leads' ? 'CRM & Prospek' : manualInputTab === 'orders' ? 'Manajemen Order' : manualInputTab === 'invoices' ? 'Manajemen Invoice' : manualInputTab === 'canvasing' ? 'Canvasing B2B' : manualInputTab === 'vendors' ? 'Manajemen Vendor' : 'Manajemen Agen B2B'}</strong></p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsManualInputOpen(false)}
+                  className="text-white hover:text-indigo-100 p-1 bg-white/10 hover:bg-white/20 rounded-lg cursor-pointer transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleManualInputSubmit} className="flex flex-col overflow-hidden">
+                <div className="p-6 space-y-4 overflow-y-auto max-h-[60vh] text-slate-800">
+                  
+                  {/* FOR LEADS, ORDERS, INVOICES */}
+                  {(manualInputTab === 'leads' || manualInputTab === 'orders' || manualInputTab === 'invoices') && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nama Pelanggan / Klien *</label>
+                          <input
+                            type="text"
+                            required
+                            value={manLeadCustomerName}
+                            onChange={(e) => setManLeadCustomerName(e.target.value)}
+                            placeholder="Contoh: PT Swadaya Indonesia"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. WhatsApp *</label>
+                          <input
+                            type="text"
+                            required
+                            value={manLeadCustomerWhatsapp}
+                            onChange={(e) => setManLeadCustomerWhatsapp(e.target.value)}
+                            placeholder="Contoh: +62812345678"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email (Opsional)</label>
+                        <input
+                          type="email"
+                          value={manLeadCustomerEmail}
+                          onChange={(e) => setManLeadCustomerEmail(e.target.value)}
+                          placeholder="client@company.co.id"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bahasa Asal</label>
+                          <input
+                            type="text"
+                            value={manLeadSourceLanguage}
+                            onChange={(e) => setManLeadSourceLanguage(e.target.value)}
+                            placeholder="Bahasa Indonesia"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bahasa Sasaran</label>
+                          <input
+                            type="text"
+                            value={manLeadTargetLanguage}
+                            onChange={(e) => setManLeadTargetLanguage(e.target.value)}
+                            placeholder="Inggris"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipe Terjemah</label>
+                          <select
+                            value={manLeadTranslationType}
+                            onChange={(e) => setManLeadTranslationType(e.target.value as any)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          >
+                            <option value="sworn">Tersumpah (Sworn)</option>
+                            <option value="non-sworn">Biasa (Non-Sworn)</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status Proyek</label>
+                          <select
+                            value={manLeadStatus}
+                            onChange={(e) => setManLeadStatus(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          >
+                            <option value="Pending">Pending / Antrian</option>
+                            <option value="Dihubungi">Sudah Dihubungi</option>
+                            <option value="Pengerjaan Terjemah">Pengerjaan Terjemah</option>
+                            <option value="Selesai">Selesai</option>
+                            <option value="Dibatalkan">Dibatalkan</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nama File Dokumen</label>
+                          <input
+                            type="text"
+                            value={manLeadFileName}
+                            onChange={(e) => setManLeadFileName(e.target.value)}
+                            placeholder="dokumen.pdf"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Biaya (Rp)</label>
+                          <input
+                            type="number"
+                            value={manLeadGrandTotalCost || ''}
+                            onChange={(e) => setManLeadGrandTotalCost(parseInt(e.target.value) || 0)}
+                            placeholder="75000"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* EXTRA FIELDS FOR ORDER TAB */}
+                      {manualInputTab === 'orders' && (
+                        <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-150 space-y-3">
+                          <span className="block text-[10px] font-bold text-emerald-850 uppercase tracking-wider">Konfigurasi Manajemen Order</span>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Penanggung Jawab (Vendor)</label>
+                              <input
+                                type="text"
+                                value={manOrderVendor}
+                                onChange={(e) => setManOrderVendor(e.target.value)}
+                                placeholder="Nama Penerjemah"
+                                className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Batas Waktu (Deadline)</label>
+                              <input
+                                type="date"
+                                value={manOrderDealDeadline}
+                                onChange={(e) => setManOrderDealDeadline(e.target.value)}
+                                className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Harga Deal Final (Rp)</label>
+                              <input
+                                type="number"
+                                value={manOrderDealFinalPrice || ''}
+                                onChange={(e) => setManOrderDealFinalPrice(parseInt(e.target.value) || 0)}
+                                placeholder="Contoh: 75000"
+                                className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Progres Pengerjaan</label>
+                              <input
+                                type="text"
+                                value={manOrderProcess}
+                                onChange={(e) => setManOrderProcess(e.target.value)}
+                                placeholder="Contoh: Bab 1 Selesai"
+                                className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-semibold focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Catatan Tambahan Order</label>
+                            <textarea
+                              rows={2}
+                              value={manOrderNotes}
+                              onChange={(e) => setManOrderNotes(e.target.value)}
+                              placeholder="Kebutuhan cetak stampel basah atau khusus..."
+                              className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* FOR CANVASING B2B */}
+                  {manualInputTab === 'canvasing' && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nama Perusahaan B2B *</label>
+                          <input
+                            type="text"
+                            required
+                            value={manCanvasingNamaPerusahaan}
+                            onChange={(e) => setManCanvasingNamaPerusahaan(e.target.value)}
+                            placeholder="Contoh: PT Pertamina (Persero)"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. Telepon / WA PIC *</label>
+                          <input
+                            type="text"
+                            required
+                            value={manCanvasingNoTelp}
+                            onChange={(e) => setManCanvasingNoTelp(e.target.value)}
+                            placeholder="+6281234567890"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nomor Surat Penawaran</label>
+                          <input
+                            type="text"
+                            value={manCanvasingNomorSurat}
+                            onChange={(e) => setManCanvasingNomorSurat(e.target.value)}
+                            placeholder="016/AMPM/SP/VI/2026"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nama PIC Utama</label>
+                          <input
+                            type="text"
+                            value={manCanvasingNamaPic}
+                            onChange={(e) => setManCanvasingNamaPic(e.target.value)}
+                            placeholder="Ibu Maya Rosita"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email PIC / Perusahaan</label>
+                        <input
+                          type="email"
+                          value={manCanvasingNoEmail}
+                          onChange={(e) => setManCanvasingNoEmail(e.target.value)}
+                          placeholder="procurement@pertamina.com"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Kategori Industri</label>
+                          <select
+                            value={manCanvasingKategori}
+                            onChange={(e) => setManCanvasingKategori(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          >
+                            <option value="Teknologi & IT">Teknologi & IT</option>
+                            <option value="Hukum & Advokasi">Hukum & Advokasi</option>
+                            <option value="Migas & Pertambangan">Migas & Pertambangan</option>
+                            <option value="Keuangan & Perbankan">Keuangan & Perbankan</option>
+                            <option value="Manufaktur & Pabrik">Manufaktur & Pabrik</option>
+                            <option value="Farmasi & Medis">Farmasi & Medis</option>
+                            <option value="Pariwisata & Hotel">Pariwisata & Hotel</option>
+                            <option value="Lain-lain">Lain-lain</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status Respon Partner</label>
+                          <select
+                            value={manCanvasingRespon}
+                            onChange={(e) => setManCanvasingRespon(e.target.value as any)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          >
+                            <option value="Tidak Respon">Tidak Respon</option>
+                            <option value="Follow Up">Follow Up / Hubungi</option>
+                            <option value="Closing">Closing (Mulai Kerjasama)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Judul Proposal / Surat Penawaran</label>
+                        <input
+                          type="text"
+                          value={manCanvasingSuratPenawaran}
+                          onChange={(e) => setManCanvasingSuratPenawaran(e.target.value)}
+                          placeholder="Proposal Kerja Sama Retainer Terjemah Sworn"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* FOR VENDORS */}
+                  {manualInputTab === 'vendors' && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nama Lengkap Vendor *</label>
+                        <input
+                          type="text"
+                          required
+                          value={manVendorNama}
+                          onChange={(e) => setManVendorNama(e.target.value)}
+                          placeholder="Contoh: Syihabuddin, S.S. (Sworn Mandarin)"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. WhatsApp Vendor *</label>
+                        <input
+                          type="text"
+                          required
+                          value={manVendorNoWa}
+                          onChange={(e) => setManVendorNoWa(e.target.value)}
+                          placeholder="+6281299887766"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Alamat / Lokasi Kantor</label>
+                        <textarea
+                          rows={3}
+                          value={manVendorAlamat}
+                          onChange={(e) => setManVendorAlamat(e.target.value)}
+                          placeholder="Jl. Margonda Raya No. 12, Depok, Jawa Barat"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* FOR AGENTS B2B */}
+                  {manualInputTab === 'agents' && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nama Lengkap Agen *</label>
+                          <input
+                            type="text"
+                            required
+                            value={manAgentNama}
+                            onChange={(e) => setManAgentNama(e.target.value)}
+                            placeholder="Contoh: PT Sinar Sejahtera"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. WhatsApp *</label>
+                          <input
+                            type="text"
+                            required
+                            value={manAgentNoWa}
+                            onChange={(e) => setManAgentNoWa(e.target.value)}
+                            placeholder="+6281122330022"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 transition-all text-slate-850"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipe Kemitraan</label>
+                          <select
+                            value={manAgentTipe}
+                            onChange={(e) => setManAgentTipe(e.target.value as any)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          >
+                            <option value="personal">Personal / Individu</option>
+                            <option value="perusahaan">Corporate / Perusahaan</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Persentase Diskon (%)</label>
+                          <input
+                            type="number"
+                            value={manAgentDiskonPersen || ''}
+                            onChange={(e) => setManAgentDiskonPersen(parseInt(e.target.value) || 0)}
+                            placeholder="15"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email Kontak Agen</label>
+                        <input
+                          type="email"
+                          value={manAgentEmail}
+                          onChange={(e) => setManAgentEmail(e.target.value)}
+                          placeholder="partnership@sinarsejahtera.co.id"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                </div>
+
+                {/* Footer Actions */}
+                <div className="bg-slate-50 p-4 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsManualInputOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl cursor-pointer transition-all"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl cursor-pointer shadow-md transition-all flex items-center gap-1"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Simpan Data</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
