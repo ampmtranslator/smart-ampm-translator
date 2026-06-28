@@ -58,6 +58,9 @@ import {
   appendRowToSpreadsheet 
 } from './lib/workspace';
 import { LogOut, Database, Folder, Lock, RefreshCw, UserCheck, Percent, Briefcase } from 'lucide-react';
+import { loggedFetch } from './lib/api';
+
+const fetch = loggedFetch;
 
 export default function App() {
   // Simple SPA Router for routing to separate pages
