@@ -414,7 +414,7 @@ app.post('/api/analyze-document', async (req, res) => {
     const cleanBase64 = fileBase64.replace(/^data:.*?;base64,/, '');
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: [
           {
@@ -1880,31 +1880,20 @@ app.delete('/api/agents/:id', async (req, res) => {
   }
 });
 
-// Integrate Vite middleware for development or Static Asset serving in prod
-async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    // Serve index.html for all frontend routes
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+// Standalone server for non-Vercel environments (npm start / Cloud Run).
+// IMPORTANT: the Vite dev server lives in dev.ts, NOT here. Importing 'vite' in this
+// file makes Vercel's bundler pull vite + its native deps into the serverless function,
+// which crashes it at cold start (FUNCTION_INVOCATION_FAILED). Keep this file vite-free.
+if (!process.env.VERCEL && process.env.NODE_ENV === 'production') {
+  const distPath = path.join(process.cwd(), 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[AMPM Sworn Translator] Backend running on port ${PORT}`);
   });
-}
-
-if (!process.env.VERCEL) {
-  startServer();
 }
 
 export default app;
