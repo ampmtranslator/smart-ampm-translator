@@ -19,6 +19,7 @@ import {
   Clock, 
   Languages, 
   User, 
+  Users,
   Copy, 
   ExternalLink,
   MessageSquare,
@@ -32,10 +33,13 @@ import {
   Receipt,
   RotateCcw,
   Send,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Download,
+  CheckCircle2,
+  HelpCircle
 } from 'lucide-react';
 
-import { TranslationLead, GoogleSheetConfig, UploadedDoc, CanvasingContact } from './types';
+import { TranslationLead, GoogleSheetConfig, UploadedDoc, CanvasingContact, Vendor, VendorPricelistItem, Agent } from './types';
 import { 
   SWORN_PRICING, 
   NON_SWORN_PRICING, 
@@ -53,11 +57,60 @@ import {
   createNewSpreadsheet, 
   appendRowToSpreadsheet 
 } from './lib/workspace';
-import { LogOut, Database, Folder, Lock, RefreshCw } from 'lucide-react';
+import { LogOut, Database, Folder, Lock, RefreshCw, UserCheck, Percent, Briefcase } from 'lucide-react';
 
 export default function App() {
+  // Simple SPA Router for routing to separate pages
+  const [currentRoute, setCurrentRoute] = useState<'public' | 'admin'>(() => {
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    if (path.includes('admin') || hash.includes('admin')) {
+      return 'admin';
+    }
+    return 'public';
+  });
+
   // Page states
-  const [activeTab, setActiveTab] = useState<'estimator' | 'admin'>('estimator');
+  const [activeTab, setActiveTab] = useState<'estimator' | 'promos' | 'admin'>(() => {
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    if (path.includes('admin') || hash.includes('admin')) {
+      return 'admin';
+    }
+    return 'estimator';
+  });
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      const path = window.location.pathname.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+      if (path.includes('admin') || hash.includes('admin')) {
+        setCurrentRoute('admin');
+        setActiveTab('admin');
+      } else {
+        setCurrentRoute('public');
+        setActiveTab((prev) => (prev === 'admin' ? 'estimator' : prev));
+      }
+    };
+    window.addEventListener('popstate', handleRouteChange);
+    window.addEventListener('hashchange', handleRouteChange);
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      window.removeEventListener('hashchange', handleRouteChange);
+    };
+  }, []);
+
+  const navigateTo = (route: 'public' | 'admin') => {
+    if (route === 'admin') {
+      window.location.hash = '#/admin';
+      setCurrentRoute('admin');
+      setActiveTab('admin');
+    } else {
+      window.location.hash = '#/';
+      setCurrentRoute('public');
+      setActiveTab('estimator');
+    }
+  };
   
   // Form input fields
   const [customerName, setCustomerName] = useState('');
@@ -103,6 +156,12 @@ export default function App() {
     grandTotal: 0
   });
 
+  // Logo image loading error fallback flag
+  const [logoError, setLogoError] = useState(false);
+
+  // Flash Sale Promo active state status
+  const [flashSaleActive, setFlashSaleActive] = useState(true);
+
   // Submission process
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState<boolean>(false);
@@ -129,10 +188,43 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
 
   // Admin Order & CRM Sub-Tabs & modal states
-  const [adminSubTab, setAdminSubTab] = useState<'leads' | 'orders' | 'canvasing' | 'insights'>('leads');
+  const [adminSubTab, setAdminSubTab] = useState<'leads' | 'orders' | 'canvasing' | 'insights' | 'invoices' | 'vendors' | 'agents'>('leads');
   const [canvasingContacts, setCanvasingContacts] = useState<CanvasingContact[]>([]);
   const [loadingCanvasing, setLoadingCanvasing] = useState(false);
   const [isAddingCanvasing, setIsAddingCanvasing] = useState(false);
+
+  // Agent Management States
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [isAddingAgent, setIsAddingAgent] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [clientSelectedAgentId, setClientSelectedAgentId] = useState<number | null>(null);
+
+  // New Agent Form States
+  const [agentNamaInput, setAgentNamaInput] = useState('');
+  const [agentTipeInput, setAgentTipeInput] = useState<'personal' | 'perusahaan'>('personal');
+  const [agentNoWaInput, setAgentNoWaInput] = useState('');
+  const [agentEmailInput, setAgentEmailInput] = useState('');
+  const [agentDiskonPersenInput, setAgentDiskonPersenInput] = useState<number>(0);
+
+  // Vendor Management States
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [loadingVendors, setLoadingVendors] = useState(false);
+  const [isAddingVendor, setIsAddingVendor] = useState(false);
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+
+  // New Vendor Form States
+  const [vendorNamaInput, setVendorNamaInput] = useState('');
+  const [vendorAlamatInput, setVendorAlamatInput] = useState('');
+  const [vendorNoWaInput, setVendorNoWaInput] = useState('');
+  const [vendorPricelistInput, setVendorPricelistInput] = useState<{ id: string; namaProduk: string; hargaVendor: number }[]>([]);
+  const [newProdNamaInput, setNewProdNamaInput] = useState('');
+  const [newProdHargaInput, setNewProdHargaInput] = useState<number>(0);
+
+  // Fix Order / Work Order Modal states
+  const [fixOrderModalLead, setFixOrderModalLead] = useState<TranslationLead | null>(null);
+  const [selectedWorkOrderVendorId, setSelectedWorkOrderVendorId] = useState<string>('');
+  const [workOrderCustomNote, setWorkOrderCustomNote] = useState<string>('');
 
   // Canvasing Quick Form States
   const [canvasingNomorSuratInput, setCanvasingNomorSuratInput] = useState('');
@@ -149,6 +241,11 @@ export default function App() {
   const [dealEditLead, setDealEditLead] = useState<TranslationLead | null>(null);
 
   // States used inside Deal/Order Configuration Panel & Customizable Invoice Items
+  const [selectedInvoiceTemplate, setSelectedInvoiceTemplate] = useState<'emerald' | 'slate' | 'royal' | 'minimal'>('emerald');
+  const [invoiceTaxRate, setInvoiceTaxRate] = useState<number>(0);
+  const [invoiceDiscountRate, setInvoiceDiscountRate] = useState<number>(0);
+  const [invoiceCustomNote, setInvoiceCustomNote] = useState<string>('');
+  
   const [dealDeadlineInput, setDealDeadlineInput] = useState('');
   const [dealStatusInput, setDealStatusInput] = useState<'Dalam Antrean' | 'Pengerjaan Terjemah' | 'Proses Proofreading' | 'Penyegelan Tersumpah' | 'Selesai' | 'Dibatalkan'>('Dalam Antrean');
   const [dealPriceInput, setDealPriceInput] = useState<number>(0);
@@ -283,8 +380,188 @@ export default function App() {
       fetchLeads();
       fetchCanvasing();
       fetchSheetsConfig();
+      fetchVendors();
+      fetchAgents();
     }
   }, [activeTab]);
+
+  const fetchAgents = async () => {
+    setLoadingAgents(true);
+    try {
+      const res = await fetch('/api/agents');
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data);
+      }
+    } catch (e) {
+      console.error('Error fetching agents:', e);
+    } finally {
+      setLoadingAgents(false);
+    }
+  };
+
+  const handleAddAgent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!agentNamaInput) {
+      alert('Nama agen wajib diisi!');
+      return;
+    }
+    try {
+      const url = editingAgent ? `/api/agents/${editingAgent.id}` : '/api/agents';
+      const method = editingAgent ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nama: agentNamaInput,
+          tipe: agentTipeInput,
+          noWa: agentNoWaInput,
+          email: agentEmailInput,
+          diskonPersen: agentDiskonPersenInput
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (editingAgent) {
+          setAgents(prev => prev.map(a => a.id === editingAgent.id ? data.agent : a));
+        } else {
+          setAgents(prev => [data.agent, ...prev]);
+        }
+        // reset form
+        setAgentNamaInput('');
+        setAgentTipeInput('personal');
+        setAgentNoWaInput('');
+        setAgentEmailInput('');
+        setAgentDiskonPersenInput(0);
+        setEditingAgent(null);
+        setIsAddingAgent(false);
+      }
+    } catch (err) {
+      console.error('Error saving agent:', err);
+    }
+  };
+
+  const handleEditAgentClick = (agent: Agent) => {
+    setEditingAgent(agent);
+    setAgentNamaInput(agent.nama);
+    setAgentTipeInput(agent.tipe);
+    setAgentNoWaInput(agent.noWa);
+    setAgentEmailInput(agent.email || '');
+    setAgentDiskonPersenInput(agent.diskonPersen);
+    setIsAddingAgent(true);
+  };
+
+  const handleDeleteAgent = async (id: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus agen ini?')) return;
+    try {
+      const res = await fetch(`/api/agents/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setAgents(prev => prev.filter(a => a.id !== id));
+      }
+    } catch (err) {
+      console.error('Error deleting agent:', err);
+    }
+  };
+
+  const fetchVendors = async () => {
+    setLoadingVendors(true);
+    try {
+      const res = await fetch('/api/vendors');
+      if (res.ok) {
+        const data = await res.json();
+        setVendors(data);
+      }
+    } catch (e) {
+      console.error('Error fetching vendors:', e);
+    } finally {
+      setLoadingVendors(false);
+    }
+  };
+
+  const handleAddVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vendorNamaInput) {
+      alert('Nama vendor wajib diisi!');
+      return;
+    }
+    try {
+      const url = editingVendor ? `/api/vendors/${editingVendor.id}` : '/api/vendors';
+      const method = editingVendor ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nama: vendorNamaInput,
+          alamat: vendorAlamatInput,
+          noWa: vendorNoWaInput,
+          pricelist: vendorPricelistInput
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (editingVendor) {
+          setVendors(prev => prev.map(v => v.id === editingVendor.id ? data.vendor : v));
+        } else {
+          setVendors(prev => [data.vendor, ...prev]);
+        }
+        // reset form
+        setVendorNamaInput('');
+        setVendorAlamatInput('');
+        setVendorNoWaInput('');
+        setVendorPricelistInput([]);
+        setEditingVendor(null);
+        setIsAddingVendor(false);
+      }
+    } catch (err) {
+      console.error('Error saving vendor:', err);
+    }
+  };
+
+  const handleEditVendorClick = (vendor: Vendor) => {
+    setEditingVendor(vendor);
+    setVendorNamaInput(vendor.nama);
+    setVendorAlamatInput(vendor.alamat);
+    setVendorNoWaInput(vendor.noWa);
+    setVendorPricelistInput(vendor.pricelist || []);
+    setIsAddingVendor(true);
+  };
+
+  const handleDeleteVendor = async (id: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus vendor ini?')) return;
+    try {
+      const res = await fetch(`/api/vendors/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setVendors(prev => prev.filter(v => v.id !== id));
+      }
+    } catch (err) {
+      console.error('Error deleting vendor:', err);
+    }
+  };
+
+  const addPricelistItem = () => {
+    if (!newProdNamaInput || newProdHargaInput <= 0) {
+      alert('Isi nama produk & harga vendor!');
+      return;
+    }
+    const newItem = {
+      id: `vitem-${Date.now()}`,
+      namaProduk: newProdNamaInput,
+      hargaVendor: newProdHargaInput
+    };
+    setVendorPricelistInput(prev => [...prev, newItem]);
+    setNewProdNamaInput('');
+    setNewProdHargaInput(0);
+  };
+
+  const removePricelistItem = (id: string) => {
+    setVendorPricelistInput(prev => prev.filter(item => item.id !== id));
+  };
 
   const fetchCanvasing = async () => {
     setLoadingCanvasing(true);
@@ -841,12 +1118,25 @@ export default function App() {
             })
           });
 
-          if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.error || 'Gagal memproses file.');
+          let data: any;
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            try {
+              data = await res.json();
+            } catch (jsonErr) {
+              throw new Error('Gagal membaca data JSON balasan dari server.');
+            }
+          } else {
+            const htmlOrText = await res.text();
+            if (res.status === 404) {
+              throw new Error('Endpoint API /api/analyze-document tidak ditemukan (404). Karena Anda men-deploy di Netlify (Hosting Statis), Netlify default hanya meng-host frontend React Anda tanpa menjalankan Server Backend (server.ts). AI dan database membutuhkan Server Full-Stack. Silakan deploy backend Anda ke Render, Railway, Cloud Run atau aktifkan Netlify Functions.');
+            }
+            throw new Error(`Server tidak mengembalikan JSON (Status ${res.status}): ${htmlOrText.slice(0, 100)}...`);
           }
 
-          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data?.error || 'Gagal memproses file.');
+          }
           return {
             id: doc.id,
             success: true,
@@ -974,6 +1264,13 @@ export default function App() {
       const finalSourceLanguage = translationDirection === 'outbound' ? 'Indonesia' : destLangLabel;
       const finalTargetLanguage = translationDirection === 'outbound' ? destLangLabel : 'Indonesia';
 
+      // Find B2B Agent and calculate custom discount if any
+      const matchedAgent = clientSelectedAgentId ? agents.find(a => a.id === clientSelectedAgentId) : null;
+      const baseTotal = costBreakdown.grandTotal;
+      const flashSaleDiscount = flashSaleActive ? Math.round(baseTotal * 0.10) : 0;
+      const agentDiscount = matchedAgent ? Math.round((baseTotal - flashSaleDiscount) * (matchedAgent.diskonPersen / 100)) : 0;
+      const finalGrandTotal = baseTotal - flashSaleDiscount - agentDiscount;
+
       const payload = {
         customerName,
         customerWhatsapp,
@@ -996,7 +1293,8 @@ export default function App() {
           skck: selectedSkck
         },
         addonCost: costBreakdown.addonCost,
-        grandTotalCost: costBreakdown.grandTotal,
+        grandTotalCost: finalGrandTotal,
+        agentId: clientSelectedAgentId,
         textExtractedSnippet: textSnippet
       };
 
@@ -1056,7 +1354,11 @@ export default function App() {
     const sourceLangText = translationDirection === 'outbound' ? 'Indonesia' : destLangLabel;
     const targetLangText = translationDirection === 'outbound' ? destLangLabel : 'Indonesia';
 
-    const text = `Halo AMPM Sworn Translator, saya ingin memesan layanan penerjemahan resmi:
+    const originalTotal = lead.grandTotalCost || 0;
+    const discAmt = flashSaleActive ? Math.round(originalTotal * 0.10) : 0;
+    const finalTotal = originalTotal - discAmt;
+
+    const text = `Halo AMPM Sworn Translator, saya ingin memesan layanan alih bahasa resmi & klaim kupon Flash Sale:
 
 *Data Klien:*
 • Nama Klien : ${lead.customerName}
@@ -1079,10 +1381,11 @@ export default function App() {
 *Estimasi Penawaran:*
 • Biaya Terjemah : Rp ${lead.totalTranslationCost.toLocaleString('id-ID')}
 • Biaya Tambahan : Rp ${lead.addonCost.toLocaleString('id-ID')}
-*• TOTAL ESTIMASI : Rp ${lead.grandTotalCost.toLocaleString('id-ID')}*
+• Harga Normal : Rp ${originalTotal.toLocaleString('id-ID')}
+${flashSaleActive ? `*• Diskon Flash Sale (10%) : -Rp ${discAmt.toLocaleString('id-ID')}* (Kupon: AMPM10FLASH)\n*• TOTAL FINAL ESTIMASI : Rp ${finalTotal.toLocaleString('id-ID')}*` : `*• TOTAL ESTIMASI : Rp ${originalTotal.toLocaleString('id-ID')}*`}
 
 ID Estimasi: *${lead.id}*
-Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
+Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale via WhatsApp ini! Terima kasih!`;
 
     return `https://wa.me/628123456789/?text=${encodeURIComponent(text)}`; // Real AMPM WA could be set here
   };
@@ -1197,6 +1500,8 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
       return !l.isPaid && matchesSearch;
     } else if (adminSubTab === 'orders') {
       return !!l.isPaid && matchesSearch;
+    } else if (adminSubTab === 'invoices') {
+      return (!!l.isDealed || !!l.isPaid) && matchesSearch;
     }
     return matchesSearch;
   });
@@ -1215,25 +1520,67 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
     );
   });
 
+  // Filtered vendors
+  const filteredVendors = vendors.filter(v => {
+    const s = searchQuery.toLowerCase();
+    return (
+      v.nama.toLowerCase().includes(s) ||
+      v.alamat.toLowerCase().includes(s) ||
+      v.noWa.includes(s) ||
+      (v.pricelist && v.pricelist.some(p => p.namaProduk.toLowerCase().includes(s)))
+    );
+  });
+
+  // Filtered agents
+  const filteredAgents = agents.filter(a => {
+    const s = searchQuery.toLowerCase();
+    return (
+      a.nama.toLowerCase().includes(s) ||
+      a.tipe.toLowerCase().includes(s) ||
+      a.noWa.includes(s) ||
+      (a.email && a.email.toLowerCase().includes(s)) ||
+      a.id.toLowerCase().includes(s)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col antialiased">
       {/* Visual Identity Logo & Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shrink-0 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-20 flex items-center justify-between">
+        <div className="w-full px-4 sm:px-8 lg:px-12 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Official AMPM Translator Logo */}
-            <img 
-              src="https://ampmtranslator.com/wp-content/uploads/2026/02/Logo-AMPMTranslator.jpg" 
-              alt="Logo AMPM Translator" 
-              referrerPolicy="no-referrer"
-              className="h-11 sm:h-12 w-auto object-contain rounded-lg border border-slate-100 shadow-xs"
-            />
+            {/* Official AMPM Translator Logo with resilient fallback */}
+            {!logoError ? (
+              <img 
+                src="https://i.ibb.co.com/TDq2jCcc/Logo-AMPMTranslator.webp" 
+                alt="Logo AMPM Translator" 
+                referrerPolicy="no-referrer"
+                onError={() => setLogoError(true)}
+                className="h-11 sm:h-12 w-auto object-contain rounded-lg border border-slate-100 shadow-xs"
+              />
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-tr from-indigo-700 via-indigo-800 to-indigo-950 flex flex-col items-center justify-center text-white font-black font-mono shadow-sm border border-indigo-500/20 tracking-tighter text-center leading-none select-none shrink-0">
+                  <span className="text-[9px] uppercase font-sans font-extrabold tracking-wide opacity-80 leading-none">AMP</span>
+                  <span className="text-xs font-black text-amber-400 mt-0.5 leading-none">M</span>
+                </div>
+                {/* Visual indicator for smaller screens when name heading is collapsed */}
+                <div className="sm:hidden flex flex-col justify-center">
+                  <span className="text-sm font-extrabold text-slate-850 tracking-tight leading-none">AMPM Sworn</span>
+                  <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-1 leading-none">Translation</span>
+                </div>
+              </div>
+            )}
             <div className="hidden sm:block">
               <h1 className="text-xl font-bold font-display text-slate-800 tracking-tight flex items-center gap-2">
                 AMPM Sworn Translator
-                <span className="bg-indigo-50 text-indigo-700 text-[10px] uppercase font-bold py-0.5 px-2 rounded-full tracking-wider">Sworn Only</span>
+                <span className="bg-indigo-50 text-indigo-700 text-[10px] uppercase font-bold py-0.5 px-2 rounded-full tracking-wider">
+                  {currentRoute === 'admin' ? 'Admin Portal' : 'Sworn Only'}
+                </span>
               </h1>
-              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Sworn Translation Service</p>
+              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
+                {currentRoute === 'admin' ? 'Order Management & CRM System' : 'Sworn Translation Service'}
+              </p>
             </div>
           </div>
 
@@ -1241,42 +1588,79 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
             <div className="text-right hidden lg:block">
               <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Service Status</p>
               <p className="text-sm font-semibold text-emerald-500 flex items-center gap-1.5 justify-end">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> AI Engine Active
+                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> {currentRoute === 'admin' ? 'Admin Session Secure' : 'AI Engine Active'}
               </p>
             </div>
 
             <div className="flex items-center space-x-2">
-              <button
-                id="tab-btn-estimator"
-                onClick={() => setActiveTab('estimator')}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all focus:outline-none flex items-center space-x-1.5 border ${
-                  activeTab === 'estimator'
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Receipt className="w-4 h-4" />
-                <span>Formulir Estimasi</span>
-              </button>
-              <button
-                id="tab-btn-admin"
-                onClick={() => setActiveTab('admin')}
-                className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all focus:outline-none flex items-center space-x-1.5 border ${
-                  activeTab === 'admin'
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                <span>Admin & Sheets</span>
-              </button>
+              {currentRoute === 'admin' ? (
+                <>
+                  <button
+                    onClick={() => navigateTo('public')}
+                    className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 rounded-xl font-bold text-xs uppercase tracking-wider transition-all focus:outline-none flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <ArrowLeftRight className="w-4 h-4 text-slate-500" />
+                    <span>Halaman Depan</span>
+                  </button>
+                  {isAdminLoggedIn && (
+                    <button
+                      onClick={() => {
+                        if (confirm('Apakah Anda yakin ingin keluar dari sesi kerja Admin?')) {
+                          localStorage.removeItem('ampm_admin_logged_in');
+                          setIsAdminLoggedIn(false);
+                          setAdminUsername('');
+                          setAdminPassword('');
+                          setIsSheetsSettingsOpen(false);
+                        }
+                      }}
+                      className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-xl font-bold text-xs uppercase tracking-wider transition-all focus:outline-none flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Logout</span>
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    id="tab-btn-estimator"
+                    onClick={() => setActiveTab('estimator')}
+                    className={`px-3 sm:px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all focus:outline-none flex items-center space-x-1.5 border cursor-pointer ${
+                      activeTab === 'estimator'
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Receipt className="w-4 h-4 text-indigo-400" />
+                    <span className="hidden xs:inline">Formulir Estimasi</span>
+                    <span className="inline xs:hidden">Estimasi</span>
+                  </button>
+                  
+                  <button
+                    id="tab-btn-promos"
+                    onClick={() => setActiveTab('promos')}
+                    className={`px-3 sm:px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all focus:outline-none flex items-center space-x-1.5 border relative cursor-pointer ${
+                      activeTab === 'promos'
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                    <span className="hidden xs:inline">Brosur & Promo</span>
+                    <span className="inline xs:hidden">Promo</span>
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-black tracking-normal px-1.5 py-0.5 rounded-full animate-bounce">
+                      -10%
+                    </span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 w-full px-4 sm:px-6 lg:px-12 py-8">
         <AnimatePresence mode="wait">
           {activeTab === 'estimator' ? (
             <motion.div
@@ -1285,15 +1669,15 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 xl:gap-12"
             >
               {/* Left Column: Form & Document Picker (7 cols) */}
               <div className="lg:col-span-7 flex flex-col space-y-6">
                 
                 {/* Visual Intro Banner */}
-                <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-lg border border-slate-800 relative overflow-hidden">
+                <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-md relative overflow-hidden">
                   <div className="relative z-10 space-y-2.5">
-                    <div className="inline-flex items-center space-x-2 bg-indigo-500/20 text-indigo-350 text-[10px] font-bold py-1 px-3 rounded-full border border-indigo-500/30 uppercase tracking-widest">
+                    <div className="inline-flex items-center space-x-2 bg-indigo-500/20 text-indigo-350 text-[10px] font-bold py-1 px-3 rounded-full border border-indigo-500/10 uppercase tracking-widest">
                       <Sparkles className="w-3.5 h-3.5 text-indigo-300 animate-pulse" />
                       <span>Analisis OCR & Estimasi Halaman Cerdas</span>
                     </div>
@@ -1308,9 +1692,9 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                   <div className="absolute right-0 bottom-0 w-44 h-44 rounded-full bg-indigo-600/20 blur-3xl pointer-events-none"></div>
                   <div className="absolute left-1/3 top-1/4 w-32 h-32 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none"></div>
                 </div>
-
+ 
                 {/* Main Form Box */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+                <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xs space-y-8 text-left">
                   <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
                     <span className="w-1 h-5 bg-indigo-600 rounded-full"></span>
                     <span>Informasi Pelanggan</span>
@@ -1348,15 +1732,34 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Alamat Email (Opsional)</label>
-                    <input
-                      type="email"
-                      placeholder="Masukkan alamat email Anda"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800 font-medium transition-all focus:bg-white"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Alamat Email (Opsional)</label>
+                      <input
+                        type="email"
+                        placeholder="Masukkan alamat email Anda"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800 font-medium transition-all focus:bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                        <span>Referensi Agen B2B (Opsional)</span>
+                        <span className="text-[9.5px] px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded font-extrabold tracking-wide">DISKON KHUSUS</span>
+                      </label>
+                      <select
+                        value={clientSelectedAgentId || ''}
+                        onChange={(e) => setClientSelectedAgentId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800 font-medium transition-all focus:bg-white cursor-pointer"
+                      >
+                        <option value="">— Tidak Ada Agen / Umum —</option>
+                        {agents.map(a => (
+                          <option key={a.id} value={a.id}>{a.nama} ({a.tipe === 'perusahaan' ? '🏢 Korporat' : '👤 Personal'})</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 pt-4">
@@ -1409,7 +1812,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50/50 border border-slate-150 p-4 rounded-2xl mb-2">
+                  <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-6 rounded-3xl mb-2 border-0">
                     {/* Source Language Column */}
                     <div className="w-full sm:flex-1">
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
@@ -1544,14 +1947,6 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                               className="hidden"
                             />
                           </label>
-                          <button
-                            type="button"
-                            onClick={loadDriveFilesList}
-                            className="inline-flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 px-4 rounded-xl border border-slate-250 hover:border-slate-350 transition-all cursor-pointer shadow-xs"
-                          >
-                            <Folder className="w-4 h-4 text-indigo-600" />
-                            <span>Pilih dari Google Drive</span>
-                          </button>
                         </div>
                       </div>
                     ) : (
@@ -1562,14 +1957,6 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                             Daftar Dokumen Anda ({uploadedDocs.length} File)
                           </span>
                           <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={loadDriveFilesList}
-                              className="inline-flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] py-1.5 px-2.5 rounded-lg border border-slate-200 transition-all cursor-pointer"
-                            >
-                              <Folder className="w-3.5 h-3.5 text-indigo-600" />
-                              <span>Ambil dari Drive</span>
-                            </button>
                             <label className="inline-flex items-center space-x-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] py-1.5 px-3 rounded-lg cursor-pointer transition-all">
                               <Plus className="w-3.5 h-3.5 text-indigo-600" />
                               <span>Tambah File</span>
@@ -1915,7 +2302,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
               <div className="lg:col-span-5 flex flex-col space-y-6">
                 
                 {/* Visual Shopping Cart Structure */}
-                <div className="bg-slate-900 text-slate-100 rounded-2xl border border-slate-800 shadow-xl overflow-hidden sticky top-24">
+                <div className="bg-slate-900 text-slate-100 rounded-3xl shadow-xl overflow-hidden sticky top-24 border-0">
                   <div className="bg-slate-950 border-b border-slate-800/80 p-5 flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Receipt className="w-5 h-5 text-indigo-400" />
@@ -2083,7 +2470,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
 
                       <div className="space-y-3">
                         {/* Apostille options */}
-                        <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                        <div className="bg-slate-950/40 p-4 rounded-xl border-0 space-y-2.5">
                           <span className="block text-[11px] font-bold text-slate-300">Apostille / Legalisasi Kemenkumham RI</span>
                           <div className="grid grid-cols-2 gap-2">
                             <button
@@ -2114,7 +2501,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                         {/* Ministerial options */}
                         <div className="space-y-1.5">
                           <span className="block text-[11px] font-bold text-slate-300">Legalisasi Kementerian & Swasta</span>
-                          <div className="max-h-36 overflow-y-auto space-y-1 pr-1 bg-slate-950/40 p-2 rounded-xl border border-slate-800/60 scrollbar-thin">
+                          <div className="max-h-36 overflow-y-auto space-y-1 pr-1 bg-slate-950/50 p-3.5 rounded-xl border-0 scrollbar-thin">
                             {[
                               { key: 'NotarisReguler', label: 'Notaris RI Reguler (Rp 350.000)' },
                               { key: 'NotarisExpress', label: 'Notaris RI Express (Rp 475.000)' },
@@ -2194,17 +2581,42 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                     </div>
 
                     {/* Calculated Invoice Breakdown */}
-                    <div className="bg-slate-950 rounded-xl p-4.5 border border-slate-800 space-y-3.5">
+                    <div className="bg-slate-950/80 rounded-2xl p-6 space-y-4 border-0">
                       <h4 className="text-xs font-bold text-indigo-400 flex items-center justify-between uppercase tracking-wider">
                         <span>Rincian Kalkulasi Kasir</span>
                         <Coins className="w-3.5 h-3.5 text-indigo-400" />
                       </h4>
 
+                      {/* Active Flash Sale Promo Alert & Toggle */}
+                      <div className="bg-gradient-to-r from-red-950/40 via-amber-950/30 to-red-950/40 border border-red-900/50 rounded-lg p-3 flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-base">🔥</span>
+                          <div>
+                            <p className="font-extrabold text-amber-400 tracking-tight flex items-center gap-1.5 uppercase text-[10px] leading-none">
+                              Kupon Flash Sale 10% Aktif!
+                              <span className="bg-red-500 text-white font-black px-1.5 py-0.5 rounded-full text-[8.5px] animate-pulse">DISKON 10%</span>
+                            </p>
+                            <p className="text-slate-300 text-[10.5px] leading-relaxed mt-1 font-medium">
+                              Khusus pemesanan via WhatsApp hari ini! Hemat biaya terjemahan resmi Anda.
+                            </p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer select-none shrink-0 scale-95">
+                          <input 
+                            type="checkbox" 
+                            checked={flashSaleActive}
+                            onChange={(e) => setFlashSaleActive(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                      </div>
+
                       <div className="space-y-2 text-xs font-semibold text-slate-300">
                         <div className="flex justify-between items-center text-slate-300 font-sans">
                           <span>
                             Biaya Terjemah {translationType === 'sworn' ? '(Sworn)' : '(Biasa)'} <br/>
-                            <span className="text-[10px] font-semibold text-slate-500 text-indigo-200/50">
+                            <span className="text-[10px] font-semibold text-slate-500 text-indigo-400/70">
                               Rp {costBreakdown.costPerPage.toLocaleString('id-ID')} × {simulatedPages} Halaman
                             </span>
                           </span>
@@ -2231,11 +2643,35 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                           </div>
                         )}
 
-                        <div className="flex justify-between items-center border-t-2 border-indigo-900/60 pt-3.5 text-sm font-bold text-white">
-                          <span className="text-indigo-400 font-sans tracking-wide">GRAND TOTAL ESTIMASI:</span>
-                          <span className="font-mono text-base text-indigo-300">
-                            Rp {costBreakdown.grandTotal.toLocaleString('id-ID')}
-                          </span>
+                        {flashSaleActive && (
+                          <div className="flex justify-between items-center border-t border-dashed border-red-900/60 pt-2 text-xs text-red-400 font-bold">
+                            <span className="flex items-center gap-1">
+                              <span>Potongan Flash Sale (10%):</span>
+                              <span className="bg-red-950/60 px-1 py-0.5 rounded text-[9px] uppercase tracking-wide border border-red-900">AMPM10FLASH</span>
+                            </span>
+                            <span className="font-mono">
+                              -Rp {Math.round(costBreakdown.grandTotal * 0.10).toLocaleString('id-ID')}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex flex-col border-t-2 border-indigo-900/60 pt-3.5 space-y-1">
+                          {flashSaleActive && (
+                            <div className="flex justify-between items-center text-[11.5px] text-slate-400 line-through decoration-red-500 decoration-1.5">
+                              <span>Harga Normal:</span>
+                              <span className="font-mono">
+                                Rp {costBreakdown.grandTotal.toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center text-sm font-bold text-white">
+                            <span className="text-indigo-450 font-sans tracking-wide">
+                              {flashSaleActive ? 'TOTAL BIAYA ESTIMASI PROMO:' : 'GRAND TOTAL ESTIMASI:'}
+                            </span>
+                            <span className={`font-mono text-base ${flashSaleActive ? 'text-amber-400 text-lg font-black' : 'text-indigo-350'}`}>
+                              Rp {((flashSaleActive) ? (costBreakdown.grandTotal - Math.round(costBreakdown.grandTotal * 0.10)) : costBreakdown.grandTotal).toLocaleString('id-ID')}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2258,10 +2694,15 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                               href={getWhatsAppLink()}
                               target="_blank"
                               referrerPolicy="no-referrer"
-                              className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md transition-all animate-bounce"
+                              className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-550 text-white font-extrabold text-sm py-3.5 px-4 rounded-xl shadow-md transition-all animate-bounce"
                             >
-                              <MessageSquare className="w-4 h-4 fill-white text-emerald-605" />
-                              <span>Hubungi Admin di WhatsApp</span>
+                              <MessageSquare className="w-4 h-4 fill-white text-emerald-100" />
+                              <span>
+                                {flashSaleActive 
+                                  ? 'Klaim Diskon 10% & Hubungi Admin di WhatsApp' 
+                                  : 'Hubungi Admin di WhatsApp'
+                                }
+                              </span>
                             </a>
                             <button
                               onClick={handleReset}
@@ -2303,6 +2744,219 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
 
               </div>
             </motion.div>
+          ) : activeTab === 'promos' ? (
+            <motion.div
+              key="promos-view"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25 }}
+              className="space-y-8 text-left"
+            >
+              {/* Promo Flash Sale Hero Block */}
+              <div className="bg-gradient-to-r from-red-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl border border-red-900/30 relative overflow-hidden">
+                <div className="relative z-10 max-w-2xl space-y-4">
+                  <div className="inline-flex items-center space-x-2 bg-red-500 text-white text-[11px] font-black py-1 px-3.5 rounded-full uppercase tracking-wider animate-pulse">
+                    <span>⚡ FLASH SALE EVENT</span>
+                  </div>
+                  <h2 className="text-2xl sm:text-4xl font-black font-display tracking-tight leading-tight">
+                    Potongan Harga Spesial <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-200">Diskon 10%</span> Tanpa Syarat!
+                  </h2>
+                  <p className="text-sm text-slate-300 leading-relaxed font-sans mt-2">
+                    Dapatkan potongan harga langsung 10% untuk semua layanan alih bahasa resmi tersumpah (Sworn) berbagai bahasa, Apostille, dan Legalisasi dokumen. Cukup klaim voucher Anda sekarang melalui WhatsApp resmi PT AMPM Sworn Translator Jasa!
+                  </p>
+                  
+                  <div className="flex flex-wrap items-center gap-3.5 pt-2">
+                    <a
+                      href="https://wa.me/628123456789/?text=Halo%20AMPM%20Sworn%20Translator%2C%20saya%20ingin%20klaim%20Voucher%20Promo%20Diskon%2010%25%20Flash%20Sale%20%28KODE%3A%20AMPM10FLASH%29%20sekarang!%20Mohon%20bantuannya.%20Terima%20kasih!"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      referrerPolicy="no-referrer"
+                      className="inline-flex items-center space-x-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm px-6 py-3.5 rounded-xl transition-all shadow-lg hover:shadow-amber-500/10 cursor-pointer scale-100 hover:scale-[1.02]"
+                    >
+                      <MessageSquare className="w-4 h-4 fill-slate-950" />
+                      <span>Klaim Voucher Diskon 10% Sekarang</span>
+                    </a>
+                    
+                    <div className="text-xs text-slate-450 font-mono flex items-center gap-1.5 opacity-90">
+                      <span>KODE KUPON:</span>
+                      <span className="bg-slate-800 px-2 py-1 rounded text-amber-300 font-bold border border-slate-705">AMPM10FLASH</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Decorative assets */}
+                <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-red-650/15 to-transparent blur-3xl pointer-events-none"></div>
+                <div className="absolute left-1/4 bottom-0 w-48 h-48 bg-indigo-650/10 rounded-full blur-3xl pointer-events-none"></div>
+              </div>
+
+              {/* Grid 2 Column for Sworn Language Pricing & Certification Services */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                {/* Left Column: Official Sworn Translators Prices */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-6">
+                  <div>
+                    <h3 className="text-lg font-bold font-display text-slate-900 tracking-tight flex items-center gap-2">
+                      <Languages className="w-5 h-5 text-indigo-650 animate-pulse" />
+                      <span>Daftar Tarif Resmi Jasa Penerjemah Tersumpah</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Sifat dokumen tersumpah (sworn translation) resmi berstempel dan bertanda tangan basah terdaftar di Kedutaan dan Kemenkumham. Dihitung per halaman cetak standar hasil terjemahan.
+                    </p>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-slate-150 shadow-xs">
+                    <table className="w-full text-xs text-left text-slate-700">
+                      <thead className="text-[10px] uppercase bg-slate-50 text-slate-500 border-b border-slate-150 font-bold tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3.5">Bahasa Sasaran</th>
+                          <th className="px-4 py-3.5 text-right">Reguler Klien</th>
+                          <th className="px-4 py-3.5 text-right font-bold text-indigo-600">Flash Sale (-10%)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium font-mono text-slate-800">
+                        {Object.keys(SWORN_PRICING).map((key) => {
+                          const item = SWORN_PRICING[key];
+                          const normalReg = item.prices.normalReguler;
+                          const discReg = Math.round(normalReg * 0.90);
+                          const normalCorp = item.prices.normalNonReguler;
+                          const discCorp = Math.round(normalCorp * 0.90);
+                          return (
+                            <tr key={key} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-4 py-3 font-sans font-semibold text-slate-800 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 hidden sm:inline-block"></span>
+                                <span className="font-bold">{item.targetLanguage}</span>
+                                <span className="text-[9px] uppercase font-bold text-slate-400">({key})</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <p className="text-slate-800 font-semibold">Rp {normalReg.toLocaleString('id-ID')}</p>
+                                <p className="text-[9.5px] text-slate-400 font-normal">Korporat: Rp {normalCorp.toLocaleString('id-ID')}</p>
+                              </td>
+                              <td className="px-4 py-3 text-right bg-amber-500/5">
+                                <p className="text-amber-600 font-black">Rp {discReg.toLocaleString('id-ID')}</p>
+                                <p className="text-[9.5px] text-emerald-605 font-bold">Corp: Rp {discCorp.toLocaleString('id-ID')}</p>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="bg-slate-50 rounded-2xl p-4.5 border border-slate-150 space-y-2.5">
+                    <h4 className="text-xs font-bold text-slate-850 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Info className="w-3.5 h-3.5 text-indigo-650" />
+                      <span>Aturan Standar Halaman Hasil Terjemahan (SK Gubernur DKI Jakarta)</span>
+                    </h4>
+                    <ul className="text-[10.5px] text-slate-600 space-y-1.5 list-disc list-inside leading-relaxed font-sans">
+                      <li>Kertas format: A4, margin 1 inci (2.54 cm) pada semua empat sisi.</li>
+                      <li>Jenis Huruf: Times New Roman 12 point.</li>
+                      <li>Double spacing (Jarak baris ganda / spasi 1.5 - 2).</li>
+                      <li>Hasil cetak fisik akan berstempel basah legalitas PT AMPM Sworn Translator Jasa.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Right Column: Non-Sworn and Legalisasi/Apostille Services */}
+                <div className="space-y-8 text-left">
+                  
+                  {/* Non-Sworn Box */}
+                  <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-4">
+                    <div>
+                      <h3 className="text-lg font-bold font-display text-slate-900 tracking-tight flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-indigo-500 animate-pulse" />
+                        <span>Tarif Alih Bahasa Biasa (Non-Sworn)</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Layanan alih bahasa berkualitas untuk literatur umum, manual teknik, dan dokumentasi akademik non-resmi.
+                      </p>
+                    </div>
+
+                    <div className="overflow-hidden rounded-xl border border-slate-150">
+                      <table className="w-full text-xs text-left text-slate-700">
+                        <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 font-bold border-b border-slate-150 tracking-wider">
+                          <tr>
+                            <th className="px-4 py-3">Jenis Alih Bahasa</th>
+                            <th className="px-4 py-3 text-right">Tarif Normal</th>
+                            <th className="px-4 py-3 text-right text-indigo-600 font-bold">Harga Promo (10%)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium font-mono text-slate-800">
+                          {Object.keys(NON_SWORN_PRICING).map((key) => {
+                            const val = NON_SWORN_PRICING[key];
+                            const normal = val.price;
+                            const promo = Math.round(normal * 0.90);
+                            return (
+                              <tr key={key} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="px-4 py-3 font-sans text-slate-800 font-semibold">{val.term}</td>
+                                <td className="px-4 py-3 text-right text-slate-500">Rp {normal.toLocaleString('id-ID')}</td>
+                                <td className="px-4 py-3 text-right font-extrabold text-amber-600 bg-amber-500/5">Rp {promo.toLocaleString('id-ID')}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Legalisasi / Apostille Box */}
+                  <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-4">
+                    <div>
+                      <h3 className="text-lg font-bold font-display text-slate-900 tracking-tight flex items-center gap-2">
+                        <ShieldCheck className="w-5 h-5 text-indigo-500 animate-pulse" />
+                        <span>Sertifikasi Apostille & Legalisasi Kementrian</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Sertifikasi dokumen resmi untuk visa studi, kerja, investasi, pernikahan luar negeri, & eksport-import.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3 font-sans text-slate-700">
+                      <div className="border border-slate-150 rounded-xl p-3 bg-indigo-50/20 flex justify-between items-center text-xs">
+                        <div>
+                          <p className="font-extrabold text-slate-850">Apostille Kemenkumham RI</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">Sertifikasi kemudahan global untuk 120+ negara konvensi Hague.</p>
+                        </div>
+                        <div className="text-right font-mono text-[11px] font-black text-indigo-700 leading-none">
+                          <p>Mulai Rp 700.000</p>
+                          <p className="text-[8.5px] text-amber-500 font-extrabold uppercase mt-1">Garansi Diskon</p>
+                        </div>
+                      </div>
+
+                      <div className="border border-slate-150 rounded-xl p-3 bg-indigo-50/20 flex justify-between items-center text-xs">
+                        <div>
+                          <p className="font-extrabold text-slate-850">Legalisasi Kedutaan Besar Asing & Kemenlu</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">Sertifikasi resmi untuk negara non-konvensi Apostille (Taiwan, Qatar, UEA, Vietnam, dll).</p>
+                        </div>
+                        <div className="text-right font-mono text-[11px] font-black text-indigo-700 leading-none">
+                          <p>Mulai Rp 450.000</p>
+                          <p className="text-[8.5px] text-amber-500 font-extrabold uppercase mt-1">Jaminan Valid</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Call to Trust Panel */}
+                  <div className="bg-slate-900 text-white rounded-3xl p-6 border border-slate-850 relative overflow-hidden flex flex-col justify-between">
+                    <div className="space-y-2 font-sans text-left">
+                      <h4 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5 font-display">
+                        <Check className="w-4 h-4 text-emerald-400 bg-emerald-950 rounded-full p-0.5" />
+                        Layanan Resmi & Bergaransi PT AMPM
+                      </h4>
+                      <p className="text-xs text-slate-350 leading-relaxed mt-1">
+                        Kami menjamin 100% bahwa penerjemah tersumpah kami terdaftar resmi di Kemenkumham RI, Kemenlu RI, dan Kedutaan Besar asing di Indonesia. File PDF berstempel basah resmi akan dikirim melalui email/WhatsApp, serta opsi kirim hardcopy via GoSend/Grab/JNE Express seketika setelah penyelesaian berkas terjemah.
+                      </p>
+                    </div>
+                    <div className="flex gap-4 mt-4 text-[10.5px] border-t border-slate-850 pt-4 text-slate-400 font-medium">
+                      <span>✓ 100% Legally Valid</span>
+                      <span>✓ Garansi Revisi Gratis</span>
+                      <span>✓ Kirim Cetak Fisik Global</span>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            </motion.div>
           ) : (
             /* Admin & Sheets Config Tab Pane (Admin dashboard view) */
             <motion.div
@@ -2315,7 +2969,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
             >
               {!isAdminLoggedIn ? (
                 /* GORGEOUS ADMIN LOGIN SCREEN */
-                <div className="max-w-md mx-auto my-8 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden text-left font-sans">
+                <div className="max-w-md mx-auto my-8 bg-white rounded-3xl shadow-xl overflow-hidden text-left font-sans border-0">
                   <div className="p-6 sm:p-8 bg-slate-900 text-white relative overflow-hidden">
                     <div className="relative z-10 space-y-2">
                       <div className="w-10 h-10 rounded-xl bg-indigo-650 flex items-center justify-center text-white font-black text-base select-none">
@@ -2343,6 +2997,17 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                     }}
                     className="p-6 sm:p-8 space-y-4 bg-white"
                   >
+                    <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 flex flex-col gap-1 text-[11px] text-indigo-900 font-sans text-left">
+                      <div className="font-bold flex items-center gap-1">
+                        <Lock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>Kredensial Akses Admin Resmi:</span>
+                      </div>
+                      <div className="flex gap-4 mt-0.5 font-mono">
+                        <span>User: <strong className="text-indigo-950 font-sans">admin</strong></span>
+                        <span>Sandi: <strong className="text-indigo-950 font-sans font-mono text-[11px]">ampmadmin2026</strong></span>
+                      </div>
+                    </div>
+
                     {loginError && (
                       <div className="p-3.5 rounded-xl border border-rose-250 bg-rose-50 text-rose-805 text-xs font-semibold flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
@@ -2396,31 +3061,10 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
               ) : (
                 /* LAYMAN FRIENDLY ADMIN WORKSPACE (FULL WIDTH ENGINE) */
                 <div className="w-full text-left space-y-6 animate-fade-in">
-                  
-                  {/* Active Google Sheets Synchronization Status Banner */}
-                  {sheetsConfig.googleSpreadsheetId && gToken && (
-                    <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 font-sans shadow-xs">
-                      <div className="flex items-center space-x-2.5">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        <div>
-                          <p className="text-xs font-bold text-emerald-850">Koneksi Otomatis Google Sheets Aktif</p>
-                          <p className="text-[10px] text-emerald-600 font-semibold leading-none mt-0.5">Setiap formulir masuk langsung terintegrasi otomatis ke file spreadsheet excel Anda.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/60 border border-emerald-200/40 rounded-md py-1 px-2.5 truncate max-w-xs">
-                          {sheetsConfig.googleDirectSyncEnabled ? 'Direct Sync Aktif' : 'Manual Sync Only'} | ID: {sheetsConfig.googleSpreadsheetId}
-                        </span>
-                      </div>
-                    </div>
-                  )}
 
                   {/* CRM & Order Manager Core Desk (100% Full Width) */}
                   <div className="w-full flex flex-col space-y-6">
-                    <div className="bg-white rounded-2xl border border-slate-150 shadow-sm overflow-hidden flex flex-col min-h-[550px]">
+                    <div className="bg-white rounded-3xl shadow-xs overflow-hidden flex flex-col min-h-[550px] border-0">
                     
                     {/* Header bar controls */}
                     <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50/50">
@@ -2432,12 +3076,19 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       <div className="flex items-center space-x-2 shrink-0">
                         <button
                           type="button"
-                          onClick={() => setIsSheetsSettingsOpen(true)}
-                          className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs py-2 px-3.5 rounded-lg shadow-xs transition-all flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer animate-pulse"
-                          title="Integrasi & Hubungkan Database Google Sheets"
+                          onClick={() => {
+                            if (confirm('Apakah Anda yakin ingin keluar dari sesi kerja Admin?')) {
+                              localStorage.removeItem('ampm_admin_logged_in');
+                              setIsAdminLoggedIn(false);
+                              setAdminUsername('');
+                              setAdminPassword('');
+                            }
+                          }}
+                          className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs py-2 px-3.5 rounded-lg shadow-xs transition-all flex items-center space-x-1.5 uppercase tracking-wider cursor-pointer"
+                          title="Keluar Sesi Administrator"
                         >
-                          <Settings className="w-3.5 h-3.5 text-emerald-700" />
-                          <span>Pengaturan Sheets & Sesi</span>
+                          <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Keluar Sesi</span>
                         </button>
 
                         <button
@@ -2517,6 +3168,22 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       <button
                         type="button"
                         onClick={() => {
+                          setAdminSubTab('invoices');
+                          setSelectedAdminLead(null);
+                        }}
+                        className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center space-x-1.5 focus:outline-none whitespace-nowrap cursor-pointer ${
+                          adminSubTab === 'invoices'
+                            ? 'text-indigo-600 border-indigo-600 font-sans'
+                            : 'text-slate-500 border-transparent hover:text-slate-700 font-medium font-sans'
+                        }`}
+                      >
+                        <Receipt className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Manajemen Invoice ({leads.filter(l => l.isDealed || l.isPaid).length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
                           setAdminSubTab('canvasing');
                           setSelectedAdminLead(null);
                         }}
@@ -2528,6 +3195,38 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       >
                         <Building className="w-3.5 h-3.5 text-blue-500" />
                         <span>Canvasing B2B ({canvasingContacts.length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('vendors');
+                          setSelectedAdminLead(null);
+                        }}
+                        className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center space-x-1.5 focus:outline-none whitespace-nowrap cursor-pointer ${
+                          adminSubTab === 'vendors'
+                            ? 'text-indigo-600 border-indigo-600 font-sans'
+                            : 'text-slate-500 border-transparent hover:text-slate-700 font-medium font-sans'
+                        }`}
+                      >
+                        <Users className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Manajemen Vendor ({vendors.length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSubTab('agents');
+                          setSelectedAdminLead(null);
+                        }}
+                        className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center space-x-1.5 focus:outline-none whitespace-nowrap cursor-pointer ${
+                          adminSubTab === 'agents'
+                            ? 'text-indigo-600 border-indigo-600 font-sans'
+                            : 'text-slate-500 border-transparent hover:text-slate-700 font-medium font-sans'
+                        }`}
+                      >
+                        <UserCheck className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Manajemen Agen B2B ({agents.length})</span>
                       </button>
 
                       <button
@@ -2548,7 +3247,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                     </div>
 
                     {/* Rendering dynamic content based on sub-tab */}
-                    {(adminSubTab === 'leads' || adminSubTab === 'orders' || adminSubTab === 'canvasing') && (
+                    {(adminSubTab === 'leads' || adminSubTab === 'orders' || adminSubTab === 'canvasing' || adminSubTab === 'invoices' || adminSubTab === 'vendors' || adminSubTab === 'agents') && (
                       <div className="px-5 py-3 border-b border-slate-100 bg-white">
                         <input
                           type="text"
@@ -2557,7 +3256,13 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                               ? "Cari prospek CRM berdasarkan nama, whatsapp, ID, atau target bahasa..."
                               : adminSubTab === 'orders'
                                 ? "Cari order deal aktif berdasarkan nama klien, whatsapp, ID, atau target bahasa..."
-                                : "Cari kontak canvasing korporat berdasarkan nama perusahaan, nama PIC, nomor surat, atau kategori..."
+                                : adminSubTab === 'invoices'
+                                  ? "Cari invoice berdasarkan nama klien, whatsapp, ID, atau target bahasa..."
+                                  : adminSubTab === 'vendors'
+                                    ? "Cari vendor berdasarkan nama, nomor WA, alamat..."
+                                    : adminSubTab === 'agents'
+                                      ? "Cari agen berdasarkan nama, nomor WA, email, tipe..."
+                                      : "Cari kontak canvasing korporat berdasarkan nama perusahaan, nama PIC, nomor surat, atau kategori..."
                           }
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
@@ -2748,7 +3453,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                             );
                           })()}
                         </div>
-                      ) : (adminSubTab !== 'canvasing' && filteredLeads.length === 0) ? (
+                      ) : (adminSubTab !== 'canvasing' && adminSubTab !== 'insights' && filteredLeads.length === 0) ? (
                         /* EMPTY DATABASE STATE */
                         <div className="h-56 flex flex-col items-center justify-center space-y-2 text-slate-500 p-8">
                           <FileText className="w-8 h-8 text-slate-300" />
@@ -2788,6 +3493,20 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                                   <span className="block text-[10px] text-slate-400 font-medium font-mono">
                                     {new Date(lead.createdAt).toLocaleDateString('id-ID')} - {new Date(lead.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                   </span>
+                                  {(() => {
+                                    const matchedAgent = agents.find(a => a.id === lead.agentId);
+                                    if (matchedAgent) {
+                                      return (
+                                        <div className="mt-1">
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 text-purple-750 text-[9px] font-extrabold rounded border border-purple-200 uppercase tracking-wider">
+                                            <UserCheck className="w-2.5 h-2.5 text-purple-650" />
+                                            Agen: {matchedAgent.nama}
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                 </td>
 
                                 <td className="py-3.5 px-4 space-y-1 text-left">
@@ -2882,56 +3601,241 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                           </tbody>
                         </table>
                       ) : adminSubTab === 'orders' ? (
-                        /* TAB 2: ACTIVE DEALS & ORDERS WORKSPACE */
-                        <table className="w-full text-left border-collapse table-fixed">
+                        /* TAB 2: ACTIVE DEALS & ORDERS WORKSPACE - 11 COLUMNS ORDER MANAGEMENT */
+                        <table className="w-full text-left border-collapse min-w-[1400px]">
                           <thead>
-                            <tr className="bg-slate-50 tracking-wider text-[10px] font-bold text-slate-450 uppercase border-b border-slate-100">
-                              <th className="py-3 px-4 w-[28%]">Klien & Order ID</th>
-                              <th className="py-3 px-4 w-[25%] text-left">Deadline Selesai</th>
-                              <th className="py-3 px-4 w-[25%] text-left">Status Order</th>
-                              <th className="py-3 px-4 w-[22%] text-right">Nilai & Ekspor Cetak</th>
+                            <tr className="bg-slate-50 tracking-wider text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100">
+                              <th className="py-3 px-4 text-left whitespace-nowrap">ORDER DATE</th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">ORDER DESCRIPTION</th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">CLIENT</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap font-bold text-purple-650">B2B REFERRAL AGEN</th>
+                              <th className="py-3 px-4 text-left whitespace-nowrap">No TLP</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap">INVOICE</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap font-bold text-indigo-650">VENDOR (TRANSLATOR)</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap font-bold text-indigo-650">PROCESS STATE</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap">NUMBER OF PAGES</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap">LANGUAGE DIRECTIONS</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap font-bold text-indigo-650">DEADLINE</th>
+                              <th className="py-3 px-4 text-center whitespace-nowrap">STATUS</th>
+                              <th className="py-3 px-4 text-right whitespace-nowrap">AKSI</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 text-xs text-slate-650">
+                          <tbody className="divide-y divide-slate-100 text-xs text-slate-650 bg-white">
                             {filteredLeads.map((lead) => {
                               const daysRemaining = lead.dealDeadline ? Math.max(0, Math.ceil((new Date(lead.dealDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0;
                               return (
                                 <tr 
                                   key={lead.id} 
-                                  className={`hover:bg-slate-50/50 transition-all cursor-pointer ${
-                                    selectedAdminLead?.id === lead.id ? 'bg-indigo-50/30' : ''
+                                  className={`hover:bg-slate-50/55 transition-all cursor-pointer ${
+                                    selectedAdminLead?.id === lead.id ? 'bg-indigo-50/20' : ''
                                   }`}
                                   onClick={() => setSelectedAdminLead(lead)}
                                 >
-                                  {/* Client ID */}
-                                  <td className="py-4 px-4 block text-left space-y-1">
-                                    <div className="flex items-center gap-1">
-                                      <span className="font-bold text-slate-800 text-xs truncate" title={lead.customerName}>{lead.customerName}</span>
-                                      <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[8.5px] rounded font-bold uppercase tracking-wide">Deal</span>
-                                    </div>
-                                    <span className="block text-[9.5px] text-slate-450 font-mono mt-0.5">ID: {lead.id}</span>
+                                  {/* 1. ORDER DATE */}
+                                  <td className="py-4 px-4 font-mono text-[11px] text-slate-550 whitespace-nowrap">
+                                    {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                                   </td>
 
-                                  {/* Order Deadline */}
-                                  <td className="py-4 px-4 text-left font-sans" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex flex-col space-y-1">
-                                      <span className="font-bold text-slate-700 font-mono text-[11px]">
-                                        {lead.dealDeadline ? new Date(lead.dealDeadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'Belum diatur'}
+                                  {/* 2. ORDER DESCRIPTION */}
+                                  <td className="py-4 px-4 text-left max-w-[200px]" title={lead.fileName}>
+                                    <div className="flex flex-col space-y-0.5">
+                                      <span className="font-extrabold text-slate-800 text-[11.5px] truncate">
+                                        {lead.translationType === 'sworn' ? '🔑 Sworn (Tersumpah)' : '📄 Reguler (Biasa)'}
                                       </span>
-                                      {lead.dealDeadline && daysRemaining > 0 ? (
-                                        <span className="inline-flex text-[9px] bg-amber-50 border border-amber-150 text-amber-800 px-1.5 py-0.5 rounded font-bold w-fit animate-pulse">
-                                          {daysRemaining} Hari Lagi
-                                        </span>
-                                      ) : lead.dealDeadline ? (
-                                        <span className="inline-flex text-[9px] bg-red-50 border border-red-150 text-red-600 px-1.5 py-0.5 rounded font-bold w-fit">
-                                          Lewat / Selesai
-                                        </span>
-                                      ) : null}
+                                      <span className="text-[10px] text-slate-450 font-medium truncate">
+                                        {lead.fileName || 'Tanpa File'}
+                                      </span>
                                     </div>
                                   </td>
 
-                                  {/* Interactive Deal Status Dropdown */}
-                                  <td className="py-4 px-4 text-left" onClick={(e) => e.stopPropagation()}>
+                                  {/* 3. CLIENT */}
+                                  <td className="py-4 px-4 font-bold text-slate-900 text-[11.5px] whitespace-nowrap">
+                                    {lead.customerName}
+                                  </td>
+
+                                  {/* 3b. B2B REFERRAL AGEN */}
+                                  <td className="py-4 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <select
+                                      value={lead.agentId || ''}
+                                      onChange={async (e) => {
+                                        const val = e.target.value ? Number(e.target.value) : null;
+                                        try {
+                                          await fetch(`/api/leads/${lead.id}`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ agentId: val })
+                                          });
+                                          setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, agentId: val } : l));
+                                        } catch (err) {
+                                          console.error('Error updating lead agent:', err);
+                                        }
+                                      }}
+                                      className="px-1.5 py-1 bg-purple-50 hover:bg-white border border-purple-200 focus:border-purple-500 rounded text-[11px] font-bold text-purple-950 focus:bg-white focus:ring-1 focus:ring-purple-500 outline-none transition-all cursor-pointer text-center w-[130px] shadow-3xs"
+                                    >
+                                      <option value="">— Retail Standar —</option>
+                                      {agents.map(a => (
+                                        <option key={a.id} value={a.id}>{a.nama} ({a.diskonPersen}%)</option>
+                                      ))}
+                                    </select>
+                                  </td>
+
+                                  {/* 4. No TLP */}
+                                  <td className="py-4 px-4 text-left font-mono text-[11px]" onClick={(e) => e.stopPropagation()}>
+                                    <a
+                                      href={`https://wa.me/${lead.customerWhatsapp.replace(/[^0-9]/g, '')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      referrerPolicy="no-referrer"
+                                      className="inline-flex items-center gap-1.5 text-slate-650 hover:text-emerald-700 font-bold bg-slate-50 hover:bg-emerald-50/50 px-2.5 py-1 rounded border border-slate-200 transition-all shadow-xs"
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                      <span>{lead.customerWhatsapp}</span>
+                                    </a>
+                                  </td>
+
+                                  {/* 5. INVOICE */}
+                                  <td className="py-4 px-4 text-center font-mono text-[11px]" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex flex-col items-center gap-1">
+                                      <span className="font-bold text-slate-500 text-[10.5px]">
+                                        AMP-INV-{lead.id.split('-')[1] || lead.id.substring(5, 9).toUpperCase()}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setInvoiceModalLead(lead)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-55 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded border border-emerald-200 hover:border-emerald-600 transition-all text-[9px] font-extrabold cursor-pointer shadow-xs"
+                                        title="Generate & Lihat Invoice Resmi"
+                                      >
+                                        <Receipt className="w-2.5 h-2.5" />
+                                        <span>Cetak Invoice</span>
+                                      </button>
+                                    </div>
+                                  </td>
+
+                                  {/* 6. VENDOR */}
+                                  <td className="py-4 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex flex-col gap-1 items-center">
+                                      <select
+                                        value={lead.vendor || ''}
+                                        onChange={async (e) => {
+                                          const val = e.target.value;
+                                          try {
+                                            await fetch(`/api/leads/${lead.id}`, {
+                                              method: 'PATCH',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ vendor: val })
+                                            });
+                                            setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, vendor: val } : l));
+                                          } catch (err) {
+                                            console.error('Error updating vendor:', err);
+                                          }
+                                        }}
+                                        className="px-1.5 py-1 bg-slate-50 border border-slate-200 rounded text-[11px] font-semibold text-slate-700 focus:bg-white focus:border-indigo-500 w-[125px] text-center shadow-xs focus:ring-1 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                                      >
+                                        <option value="">— Pilih Vendor —</option>
+                                        {vendors.map(v => (
+                                          <option key={v.id} value={v.nama}>{v.nama}</option>
+                                        ))}
+                                        {lead.vendor && !vendors.some(v => v.nama === lead.vendor) && (
+                                          <option value={lead.vendor}>{lead.vendor}</option>
+                                        )}
+                                      </select>
+                                      
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const matched = vendors.find(v => v.nama === lead.vendor);
+                                          setSelectedWorkOrderVendorId(matched?.id || '');
+                                          setWorkOrderCustomNote('');
+                                          setFixOrderModalLead(lead);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-[9.5px] font-bold rounded-md border border-rose-200 transition-all cursor-pointer shadow-3xs"
+                                        title="Buat Surat Perintah Kerja (Fix Order/Work Order) Tanpa Harga Customer"
+                                      >
+                                        <FileCheck className="w-2.5 h-2.5" />
+                                        <span>Fix Order</span>
+                                      </button>
+                                    </div>
+                                  </td>
+
+                                  {/* 7. PROCESS */}
+                                  <td className="py-4 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="text"
+                                      defaultValue={lead.process || ''}
+                                      placeholder="🔍 Tahap Proses..."
+                                      onBlur={async (e) => {
+                                        const val = e.target.value;
+                                        if (val !== (lead.process || '')) {
+                                          try {
+                                            await fetch(`/api/leads/${lead.id}`, {
+                                              method: 'PATCH',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ process: val })
+                                            });
+                                            setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, process: val } : l));
+                                          } catch (err) {
+                                            console.error('Error updating process:', err);
+                                          }
+                                        }
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          (e.target as HTMLInputElement).blur();
+                                        }
+                                      }}
+                                      className="px-2 py-1 bg-slate-50/50 border border-slate-200 rounded text-[11px] font-semibold text-slate-700 placeholder-slate-400 focus:bg-white focus:border-indigo-500 w-[120px] text-center shadow-xs focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                                    />
+                                  </td>
+
+                                  {/* 8. NUMBER OF PAGES */}
+                                  <td className="py-4 px-4 text-center font-mono text-[11.5px] font-bold text-slate-700 whitespace-nowrap">
+                                    {lead.calculatedStandardPages || 1} Halaman
+                                  </td>
+
+                                  {/* 9. LANGUAGE DIRECTIONS */}
+                                  <td className="py-4 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50/50 rounded border border-indigo-100/60 text-[10px] font-bold text-indigo-950 whitespace-nowrap">
+                                      <span>{lead.sourceLanguage}</span>
+                                      <span className="text-indigo-400 text-[11px] font-black mx-0.5">➔</span>
+                                      <span>{lead.targetLanguage}</span>
+                                    </div>
+                                  </td>
+
+                                  {/* 10. DEADLINE */}
+                                  <td className="py-4 px-4 text-center font-sans" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex flex-col items-center gap-1">
+                                      <input
+                                        type="date"
+                                        value={lead.dealDeadline || ''}
+                                        onChange={async (e) => {
+                                          const val = e.target.value;
+                                          try {
+                                            await fetch(`/api/leads/${lead.id}`, {
+                                              method: 'PATCH',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ dealDeadline: val })
+                                            });
+                                            setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, dealDeadline: val } : l));
+                                          } catch (err) {
+                                            console.error('Error updating deadline:', err);
+                                          }
+                                        }}
+                                        className="px-2 py-0.5 bg-slate-50/50 border border-slate-200 rounded text-[10.5px] font-bold text-slate-700 focus:bg-white focus:border-indigo-500 w-[120px] text-center shadow-xs cursor-pointer focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                                      />
+                                      {lead.dealDeadline && (
+                                        <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-black uppercase tracking-wide leading-none ${
+                                          daysRemaining > 0 
+                                            ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                                            : 'bg-red-100 text-red-800 border border-red-200'
+                                        }`}>
+                                          {daysRemaining > 0 ? `${daysRemaining} Hari` : 'Lewat'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* 11. STATUS */}
+                                  <td className="py-4 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                                     <select
                                       value={lead.dealStatus || 'Dalam Antrean'}
                                       onChange={async (e) => {
@@ -2966,58 +3870,43 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                                     </select>
                                   </td>
 
-                                  {/* Finansial, Quotation, and Invoice Buttons */}
+                                  {/* INTERACTIVE ACTIONS */}
                                   <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex flex-col items-end gap-1.5">
-                                      <span className="font-mono font-bold text-xs text-indigo-705">
-                                        Rp {(lead.dealFinalPrice ?? lead.grandTotalCost ?? 0).toLocaleString('id-ID')}
-                                      </span>
-                                      
-                                      <div className="flex items-center gap-1.5 mt-1 shrink-0">
-                                        <button
-                                          type="button"
-                                          onClick={() => setQuotationModalLead(lead)}
-                                          className="p-1 px-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-md border border-indigo-200 transition-all text-[9.5px] font-bold flex items-center space-x-0.5 cursor-pointer"
-                                          title="Lihat & Cetak Surat Penawaran Resmi"
-                                        >
-                                          <FileText className="w-2.5 h-2.5" />
-                                          <span>Penawaran</span>
-                                        </button>
+                                    <div className="flex items-center justify-end gap-1 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => setQuotationModalLead(lead)}
+                                        className="p-1 px-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded border border-indigo-200 hover:border-indigo-600 transition-all text-[9.5px] font-bold flex items-center space-x-0.5 cursor-pointer shadow-xs"
+                                        title="Lihat & Cetak Surat Penawaran Resmi"
+                                      >
+                                        <FileText className="w-2.5 h-2.5" />
+                                        <span>Penawaran</span>
+                                      </button>
 
-                                        <button
-                                          type="button"
-                                          onClick={() => setInvoiceModalLead(lead)}
-                                          className="p-1 px-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-md border border-emerald-200 transition-all text-[9.5px] font-bold flex items-center space-x-0.5 cursor-pointer"
-                                          title="Lihat & Cetak Surat Faktur Tagihan"
-                                        >
-                                          <Receipt className="w-2.5 h-2.5" />
-                                          <span>Invoice</span>
-                                        </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setDealEditLead(lead);
+                                          setDealDeadlineInput(lead.dealDeadline || '');
+                                          setDealStatusInput(lead.dealStatus || 'Dalam Antrean');
+                                          setDealPriceInput(lead.dealFinalPrice || lead.grandTotalCost);
+                                          setDealNotesInput(lead.orderNotes || ''); 
+                                          setDealInvoiceItems(lead.invoiceItems || [{ id: 'trans-' + Date.now(), nama: 'Paket Dokumen ' + (lead.translationType === 'sworn' ? 'Kategori Sworn' : 'Kategori Reguler'), harga: lead.dealFinalPrice || lead.grandTotalCost, qty: 1 }]);
+                                        }}
+                                        className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded border border-slate-200 text-slate-700 hover:text-slate-950 transition shadow-xs cursor-pointer"
+                                        title="Ubah Rincian Deadline, Pembayaran, dan Catatan Internal"
+                                      >
+                                        <Settings className="w-3.5 h-3.5" />
+                                      </button>
 
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setDealEditLead(lead);
-                                            setDealDeadlineInput(lead.dealDeadline || '');
-                                            setDealStatusInput(lead.dealStatus || 'Dalam Antrean');
-                                            setDealPriceInput(lead.dealFinalPrice || lead.grandTotalCost);
-                                            setDealNotesInput(lead.orderNotes || ''); setDealInvoiceItems(lead.invoiceItems || [{ id: 'trans-' + Date.now(), nama: 'Paket Dokumen ' + (lead.translationType === 'sworn' ? 'Kategori Sworn' : 'Kategori Reguler'), harga: lead.dealFinalPrice || lead.grandTotalCost, qty: 1 }]);
-                                          }}
-                                          className="p-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 transition"
-                                          title="Ubah Rincian Deadline, Pembayaran, dan Catatan Internal"
-                                        >
-                                          <Settings className="w-3 h-3" />
-                                        </button>
-
-                                        <button
-                                          type="button"
-                                          onClick={() => handleToggleDeal(lead, false)}
-                                          className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded cursor-pointer"
-                                          title="Kembalikan status menjadi Prospek CRM"
-                                        >
-                                          <ArrowLeftRight className="w-3 h-3" />
-                                        </button>
-                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleDeal(lead, false)}
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded border border-rose-150 cursor-pointer shadow-xs"
+                                        title="Kembalikan status menjadi Prospek CRM"
+                                      >
+                                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                                      </button>
                                     </div>
                                   </td>
                                 </tr>
@@ -3025,7 +3914,300 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                             })}
                           </tbody>
                         </table>
-                      ) : (
+                      ) : adminSubTab === 'invoices' ? (
+                        /* TAB 4: COMPREHENSIVE INVOICE & TAX MANAGEMENT PANEL */
+                        <div className="p-5 space-y-6 text-left">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 font-sans">
+                                <Receipt className="w-4 h-4 text-emerald-600" />
+                                Manajemen Invoice & Keuangan Penagihan Profesional
+                              </h3>
+                              <p className="text-[11px] text-slate-450 mt-1 font-sans">
+                                Atur template invoice, kalkulasi pajak (PPN) & diskon khusus, unduh kwitansi A4 PDF, serta ekspor pembukuan keuangan ke CSV secara real-time.
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const invoiceLeads = filteredLeads.filter(l => l.isDealed || l.isPaid);
+                                  let csvContent = "data:text/csv;charset=utf-8,";
+                                  csvContent += "ID INVOICE,TANGGAL,NAMA KLIEN,NO WHATSAPP,ARAH BAHASA,HALAMAN,SUBTOTAL,DISKON (%),PAJAK (%),TOTAL AKHIR,STATUS\n";
+                                  
+                                  invoiceLeads.forEach(lead => {
+                                    const subtotal = lead.invoiceItems && lead.invoiceItems.length > 0
+                                      ? lead.invoiceItems.reduce((acc: number, item: any) => acc + ((item.harga || 0) * (item.qty || 1)), 0)
+                                      : (lead.dealFinalPrice ?? lead.grandTotalCost ?? lead.totalTranslationCost ?? 0);
+                                    const disc = (subtotal * invoiceDiscountRate) / 100;
+                                    const tax = ((subtotal - disc) * invoiceTaxRate) / 100;
+                                    const total = subtotal - disc + tax;
+                                    const status = lead.isPaid ? "LUNAS" : "MENUNGGU PEMBAYARAN";
+                                    
+                                    csvContent += `"${lead.id}","${new Date(lead.createdAt).toLocaleDateString('id-ID')}","${lead.customerName}","${lead.customerWhatsapp}","Indonesia - ${lead.targetLanguage}","${lead.calculatedStandardPages || 1}","${subtotal}","${invoiceDiscountRate}","${invoiceTaxRate}","${total}","${status}"\n`;
+                                  });
+                                  
+                                  const encodedUri = encodeURI(csvContent);
+                                  const link = document.createElement("a");
+                                  link.setAttribute("href", encodedUri);
+                                  link.setAttribute("download", `Laporan_Invoice_AMPM_${new Date().toISOString().slice(0, 10)}.csv`);
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                }}
+                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Ekspor Data (CSV)</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Dynamic Financial Analytics (Statistics Cards) */}
+                          {(() => {
+                            const invoiceLeads = leads.filter(l => l.isDealed || l.isPaid);
+                            const paidLeads = invoiceLeads.filter(l => l.isPaid);
+                            const unpaidLeads = invoiceLeads.filter(l => !l.isPaid);
+
+                            const calculateSum = (list: typeof leads) => {
+                              return list.reduce((sum, lead) => {
+                                const sub = lead.invoiceItems && lead.invoiceItems.length > 0
+                                  ? lead.invoiceItems.reduce((acc: number, item: any) => acc + ((item.harga || 0) * (item.qty || 1)), 0)
+                                  : (lead.dealFinalPrice ?? lead.grandTotalCost ?? lead.totalTranslationCost ?? 0);
+                                const disc = (sub * invoiceDiscountRate) / 100;
+                                const tax = ((sub - disc) * invoiceTaxRate) / 100;
+                                return sum + (sub - disc + tax);
+                              }, 0);
+                            };
+
+                            const totalRevenue = calculateSum(invoiceLeads);
+                            const totalPaid = calculateSum(paidLeads);
+                            const totalUnpaid = calculateSum(unpaidLeads);
+
+                            return (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-150 relative overflow-hidden text-left">
+                                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Nilai Tagihan</span>
+                                  <span className="block text-lg font-black text-slate-800 font-mono mt-1">Rp {totalRevenue.toLocaleString('id-ID')}</span>
+                                  <span className="block text-[9.5px] text-slate-450 mt-1">{invoiceLeads.length} berkas invoice diterbitkan</span>
+                                  <div className="absolute right-3 bottom-3 p-1.5 bg-slate-200/50 text-slate-500 rounded-lg">
+                                    <Receipt className="w-4 h-4" />
+                                  </div>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-emerald-50/40 border border-emerald-150 relative overflow-hidden text-left">
+                                  <span className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Total Sudah Terbayar</span>
+                                  <span className="block text-lg font-black text-emerald-700 font-mono mt-1">Rp {totalPaid.toLocaleString('id-ID')}</span>
+                                  <span className="block text-[9.5px] text-emerald-600 mt-1">{paidLeads.length} berkas lunas terkonfirmasi</span>
+                                  <div className="absolute right-3 bottom-3 p-1.5 bg-emerald-100 text-emerald-600 rounded-lg">
+                                    <CheckCircle2 className="w-4 h-4" />
+                                  </div>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-amber-50/30 border border-amber-150 relative overflow-hidden text-left">
+                                  <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider">Total Piutang Berjalan</span>
+                                  <span className="block text-lg font-black text-amber-700 font-mono mt-1">Rp {totalUnpaid.toLocaleString('id-ID')}</span>
+                                  <span className="block text-[9.5px] text-amber-600 mt-1">{unpaidLeads.length} berkas menunggu pelunasan</span>
+                                  <div className="absolute right-3 bottom-3 p-1.5 bg-amber-100 text-amber-655 rounded-lg">
+                                    <HelpCircle className="w-4 h-4" />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Template Settings & Customizer Block */}
+                          <div className="bg-white border border-slate-150 rounded-2xl p-5 space-y-4">
+                            <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <Settings className="w-3.5 h-3.5 text-indigo-600" />
+                              Konfigurasi Invoice Customizer & Global Tax
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Pilih Template Estetika</label>
+                                <select
+                                  value={selectedInvoiceTemplate}
+                                  onChange={(e) => setSelectedInvoiceTemplate(e.target.value as any)}
+                                  className="w-full px-3 py-2 border border-slate-250 bg-slate-50/50 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-none font-medium"
+                                >
+                                  <option value="emerald">💚 Emerald Professional (Standard)</option>
+                                  <option value="slate">🖤 Midnight Slate (Modern Minimalist)</option>
+                                  <option value="royal">💙 Royal Cobalt (Enterprise Premium)</option>
+                                  <option value="minimal">❤️ Minimal Crimson (Editorial Style)</option>
+                                </select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Tarif PPN / Pajak (%)</label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={invoiceTaxRate}
+                                    onChange={(e) => setInvoiceTaxRate(Math.max(0, parseInt(e.target.value) || 0))}
+                                    className="w-full px-3 py-2 pr-8 border border-slate-250 bg-slate-50/50 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-none font-mono"
+                                  />
+                                  <span className="absolute right-3 top-2 text-slate-400 font-bold">%</span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Diskon Global (%)</label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={invoiceDiscountRate}
+                                    onChange={(e) => setInvoiceDiscountRate(Math.max(0, parseInt(e.target.value) || 0))}
+                                    className="w-full px-3 py-2 pr-8 border border-slate-250 bg-slate-50/50 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-none font-mono"
+                                  />
+                                  <span className="absolute right-3 top-2 text-slate-400 font-bold">%</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">Catatan & Ketentuan Pembayaran Khusus (Terms & Bank Info)</label>
+                                <button
+                                  type="button"
+                                  onClick={() => setInvoiceCustomNote('')}
+                                  className="text-[9px] font-bold text-slate-400 hover:text-rose-600 transition"
+                                >
+                                  Reset ke Default
+                                </button>
+                              </div>
+                              <textarea
+                                value={invoiceCustomNote}
+                                onChange={(e) => setInvoiceCustomNote(e.target.value)}
+                                placeholder="Tulis instruksi rekening bank, terms, tenggat waktu denda keterlambatan dsb. Jika dikosongkan, instruksi PT AMPM standar akan digunakan."
+                                rows={2}
+                                className="w-full px-3 py-2 border border-slate-250 bg-slate-50/50 rounded-xl text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none font-sans leading-relaxed"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Invoice Management Table */}
+                          <div className="overflow-x-auto bg-white rounded-3xl">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100 tracking-wider">
+                                  <th className="py-3 px-4 text-left">INVOICE ID / DATE</th>
+                                  <th className="py-3 px-4 text-left">CLIENT DETAILS</th>
+                                  <th className="py-3 px-4 text-left">DESCRIPTION & PAGES</th>
+                                  <th className="py-3 px-4 text-right">SUBTOTAL</th>
+                                  <th className="py-3 px-4 text-right">GRAND TOTAL</th>
+                                  <th className="py-3 px-4 text-center">STATUS</th>
+                                  <th className="py-3 px-4 text-right">AKSI KEUANGAN</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 text-xs text-slate-650">
+                                {(() => {
+                                  const list = filteredLeads.filter(l => l.isDealed || l.isPaid);
+                                  if (list.length === 0) {
+                                    return (
+                                      <tr>
+                                        <td colSpan={7} className="py-10 text-center text-slate-400 font-medium">
+                                          Tidak ada invoice yang sesuai pencarian atau kategori ini.
+                                        </td>
+                                      </tr>
+                                    );
+                                  }
+                                  return list.map((lead) => {
+                                    const subtotal = lead.invoiceItems && lead.invoiceItems.length > 0
+                                      ? lead.invoiceItems.reduce((acc: number, item: any) => acc + ((item.harga || 0) * (item.qty || 1)), 0)
+                                      : (lead.dealFinalPrice ?? lead.grandTotalCost ?? lead.totalTranslationCost ?? 0);
+                                    
+                                    const disc = (subtotal * invoiceDiscountRate) / 100;
+                                    const tax = ((subtotal - disc) * invoiceTaxRate) / 100;
+                                    const total = subtotal - disc + tax;
+
+                                    // WA Reminder Link Helper
+                                    const waMsg = `Halo Bapak/Ibu *${lead.customerName}*,\n\nKami mengirimkan lembaran tagihan resmi (Official Invoice) terkait proyek jasa penerjemahan berkas Anda dengan nomor permohonan *AMP-INV-${new Date().getFullYear()}-${lead.id.toUpperCase()}*.\n\n*Rincian Pembayaran:* \n- Subtotal: Rp ${subtotal.toLocaleString('id-ID')}\n- PPN (${invoiceTaxRate}%): Rp ${tax.toLocaleString('id-ID')}\n- Diskon: Rp ${disc.toLocaleString('id-ID')}\n-----------------------------\n*Total Tagihan Bersih: Rp ${total.toLocaleString('id-ID')}*\n\nStatus saat ini: *${lead.isPaid ? 'SUDAH LUNAS' : 'MENUNGGU PELUNASAN'}*\n\nMohon transfer ke rekening PT AMPM Sworn Translator Jasa:\n- BCA: 224-101-4444\n- Mandiri: 124-000-999-5252\n\nSilakan kirimkan bukti pembayaran kesini ya. Terima kasih!`;
+
+                                    return (
+                                      <tr key={lead.id} className="hover:bg-slate-50/30 transition-all">
+                                        <td className="py-3.5 px-4 block text-left">
+                                          <span className="block font-mono font-bold text-slate-800">#AMP-{lead.id.toUpperCase()}</span>
+                                          <span className="block text-[10px] text-slate-400 mt-0.5">{new Date(lead.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                        </td>
+                                        <td className="py-3.5 px-4 text-left">
+                                          <span className="block font-bold text-slate-800">{lead.customerName}</span>
+                                          <span className="block text-[10px] text-slate-450 font-mono mt-0.5">{lead.customerWhatsapp}</span>
+                                        </td>
+                                        <td className="py-3.5 px-4 text-left">
+                                          <span className="block text-slate-700 truncate max-w-[200px]">{lead.fileName || "Berkas Terjemahan"}</span>
+                                          <span className="block text-[10px] text-slate-400 mt-0.5">{lead.calculatedStandardPages || 1} Halaman • Indonesia to <span className="uppercase text-indigo-600 font-bold">{lead.targetLanguage}</span></span>
+                                        </td>
+                                        <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-550">
+                                          Rp {subtotal.toLocaleString('id-ID')}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-right font-mono font-black text-slate-800">
+                                          Rp {total.toLocaleString('id-ID')}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleMarkasPaid(lead, !lead.isPaid)}
+                                            className={`px-2.5 py-1 rounded-full text-[9.5px] font-bold border transition-all cursor-pointer ${
+                                              lead.isPaid 
+                                                ? 'bg-emerald-50 border-emerald-350 text-emerald-800' 
+                                                : 'bg-rose-50 border-rose-350 text-rose-800 animate-pulse'
+                                            }`}
+                                            title="Ubah Status Pembayaran"
+                                          >
+                                            {lead.isPaid ? '✓ LUNAS' : '● MENUNGGU'}
+                                          </button>
+                                        </td>
+                                        <td className="py-3.5 px-4 text-right">
+                                          <div className="flex items-center justify-end gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const matched = vendors.find(v => v.nama === lead.vendor);
+                                                setSelectedWorkOrderVendorId(matched?.id || '');
+                                                setWorkOrderCustomNote('');
+                                                setFixOrderModalLead(lead);
+                                              }}
+                                              className="p-1.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-lg border border-rose-250 transition-all cursor-pointer shadow-xs flex items-center space-x-1"
+                                              title="Pratinjau & Kirim Fix Order Penerjemah"
+                                            >
+                                              <FileCheck className="w-3.5 h-3.5" />
+                                              <span className="text-[10px] font-bold">Fix Order</span>
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => setInvoiceModalLead(lead)}
+                                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-750 hover:text-slate-950 rounded-lg border border-slate-250 transition-all cursor-pointer shadow-xs flex items-center space-x-1"
+                                              title="Pratinjau & Cetak Invoice PDF"
+                                            >
+                                              <Receipt className="w-3.5 h-3.5" />
+                                              <span className="text-[10px] font-bold">Cetak A4</span>
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => window.open(`https://wa.me/${lead.customerWhatsapp.replace(/[^0-9]/g, '')}/?text=${encodeURIComponent(waMsg)}`, '_blank', 'noreferrer')}
+                                              className="p-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg border border-emerald-250 transition-all cursor-pointer shadow-xs"
+                                              title="Kirim Link Tagihan & Reminder Lunas via WA"
+                                            >
+                                              <MessageSquare className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : adminSubTab === 'canvasing' ? (
                         /* TAB 3: B2B CANVASSING DIRECT SALES & PARTNERS DATABASE */
                         <div className="p-5 space-y-5">
                           {/* Header and Statistics summary */}
@@ -3244,7 +4426,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                           </div>
 
                           {/* Canvasing Table representation */}
-                          <div className="border border-slate-150 rounded-xl overflow-hidden shadow-xs bg-white">
+                          <div className="overflow-x-auto bg-white rounded-3xl">
                             {filteredCanvasing.length === 0 ? (
                               <div className="h-48 flex flex-col items-center justify-center space-y-1.5 p-6 text-slate-500 text-center">
                                 <Building className="w-7 h-7 text-slate-305" />
@@ -3391,6 +4573,487 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                             )}
                           </div>
                         </div>
+                      ) : adminSubTab === 'vendors' ? (
+                        /* TAB 5: COMPREHENSIVE VENDOR MANAGEMENT */
+                        <div className="p-5 space-y-6">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 text-left">
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 font-sans">
+                                <Users className="w-4 h-4 text-rose-600" />
+                                Manajemen Basis Data Vendor & Pricelist Mitra
+                              </h3>
+                              <p className="text-[11px] text-slate-450 mt-1 font-sans">
+                                Daftarkan vendor tepercaya Anda lengkap dengan alamat fisik, kontak darurat WhatsApp, serta daftar penawaran harga pengerjaan (pricelist) unik mereka.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingVendor(null);
+                                setVendorNamaInput('');
+                                setVendorAlamatInput('');
+                                setVendorNoWaInput('');
+                                setVendorPricelistInput([]);
+                                setIsAddingVendor(!isAddingVendor);
+                              }}
+                              className="self-start sm:self-center bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow-xs shrink-0"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>{isAddingVendor ? 'Tutup Form' : 'Tambah Vendor Baru'}</span>
+                            </button>
+                          </div>
+
+                          {/* Add / Edit Vendor Form */}
+                          {isAddingVendor && (
+                            <form onSubmit={handleAddVendor} className="bg-slate-50/50 p-5 rounded-2xl border border-slate-150 space-y-4 text-left animate-fade-in">
+                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                {editingVendor ? '📋 Ubah Detail Vendor' : '✨ Daftarkan Vendor Baru'}
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider">Nama Lengkap Vendor *</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Contoh: Budi Santoso, S.S. (Penerjemah Inggris)"
+                                    value={vendorNamaInput}
+                                    onChange={(e) => setVendorNamaInput(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-205 focus:border-rose-505 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all text-slate-805"
+                                    required
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider">Kontak WhatsApp Vendor *</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Contoh: 08123456789 atau 628123456789"
+                                    value={vendorNoWaInput}
+                                    onChange={(e) => setVendorNoWaInput(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-205 focus:border-rose-505 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all text-slate-805"
+                                    required
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider">Alamat Fisik / Domisili</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Contoh: Jl. Diponegoro No. 12, Jakarta Pusat"
+                                    value={vendorAlamatInput}
+                                    onChange={(e) => setVendorAlamatInput(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-205 focus:border-rose-505 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all text-slate-805"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Pricelist Management inside form */}
+                              <div className="bg-white p-4 rounded-xl border border-slate-200/85 space-y-3">
+                                <h5 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                                  <Coins className="w-3.5 h-3.5 text-rose-500" />
+                                  Pricelist Tarif Jasa Vendor
+                                </h5>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                  <div className="space-y-1">
+                                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Nama Layanan / Target Bahasa</label>
+                                    <input
+                                      type="text"
+                                      placeholder="Contoh: Inggris - Indonesia (Sumpah)"
+                                      value={newProdNamaInput}
+                                      onChange={(e) => setNewProdNamaInput(e.target.value)}
+                                      className="w-full px-3 py-1.5 bg-slate-50/50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none text-slate-800"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Harga per Lembar / Kata (Rp)</label>
+                                    <input
+                                      type="number"
+                                      placeholder="Contoh: 75000"
+                                      value={newProdHargaInput || ''}
+                                      onChange={(e) => setNewProdHargaInput(Number(e.target.value))}
+                                      className="w-full px-3 py-1.5 bg-slate-50/50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none text-slate-800"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={addPricelistItem}
+                                    className="bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs py-2 px-4 rounded-lg cursor-pointer transition-all flex items-center justify-center gap-1"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>Tambah Tarif</span>
+                                  </button>
+                                </div>
+
+                                {/* Pricelist Items List inside form */}
+                                {vendorPricelistInput.length === 0 ? (
+                                  <p className="text-[10px] text-slate-400 italic">Belum ada item pricelist yang ditambahkan untuk vendor ini.</p>
+                                ) : (
+                                  <div className="flex flex-wrap gap-2 pt-2">
+                                    {vendorPricelistInput.map((item) => (
+                                      <div key={item.id} className="flex items-center gap-2 bg-rose-50 border border-rose-100 px-2.5 py-1 rounded-full text-xs font-semibold text-rose-850">
+                                        <span>{item.namaProduk}: <strong className="font-mono text-rose-700">Rp {item.hargaVendor.toLocaleString('id-ID')}</strong></span>
+                                        <button
+                                          type="button"
+                                          onClick={() => removePricelistItem(item.id)}
+                                          className="text-rose-500 hover:text-rose-700 focus:outline-none cursor-pointer"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 justify-end pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsAddingVendor(false);
+                                    setEditingVendor(null);
+                                  }}
+                                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                                <button
+                                  type="submit"
+                                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-750 rounded-xl cursor-pointer shadow-md flex items-center gap-1"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  <span>{editingVendor ? 'Simpan Perubahan' : 'Simpan Vendor'}</span>
+                                </button>
+                              </div>
+                            </form>
+                          )}
+
+                          {/* Vendors List representation */}
+                          <div className="overflow-x-auto bg-white rounded-3xl">
+                            {filteredVendors.length === 0 ? (
+                              <div className="h-48 flex flex-col items-center justify-center space-y-1.5 p-6 text-slate-500 text-center">
+                                <Users className="w-7 h-7 text-slate-305" />
+                                <p className="text-xs font-semibold text-slate-700">Tidak ada vendor ditemukan</p>
+                                <p className="text-[10.5px] text-slate-400">Gunakan kolom cari diatas atau klik "+ Tambah Vendor Baru"</p>
+                              </div>
+                            ) : (
+                              <table className="w-full text-left border-collapse table-fixed">
+                                <thead>
+                                  <tr className="bg-slate-50 border-b border-slate-150 text-[10px] uppercase font-mono text-slate-500 leading-tight">
+                                    <th className="py-2.5 px-3 w-[5%] text-center">No</th>
+                                    <th className="py-2.5 px-3 w-[25%]">Detail Vendor / Alamat</th>
+                                    <th className="py-2.5 px-3 w-[15%]">Kontak WA</th>
+                                    <th className="py-2.5 px-3 w-[43%]">Pricelist Jasa Layanan Vendor</th>
+                                    <th className="py-2.5 px-3 w-[12%] text-right">Aksi</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                                  {filteredVendors.map((vendor, index) => {
+                                    const waNumber = vendor.noWa.replace(/[^0-9]/g, '');
+                                    const textWA = `Halo Rekan ${vendor.nama},\n\nApakah sedang luang untuk menerima pesanan penerjemahan baru dari PT AMPM Sworn Translator?\n\nKami akan mengirimkan detail order sesaat lagi. Terima kasih!`;
+                                    
+                                    return (
+                                      <tr key={vendor.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="py-3 px-3 text-center text-slate-400 font-mono font-bold">
+                                          {index + 1}
+                                        </td>
+                                        <td className="py-3 px-3 text-left space-y-1">
+                                          <div className="font-bold text-slate-800">{vendor.nama}</div>
+                                          {vendor.alamat && (
+                                            <div className="text-[10px] text-slate-450 leading-relaxed flex items-start gap-1">
+                                              <span className="text-[11px] leading-none shrink-0">📍</span>
+                                              <span className="break-words select-all">{vendor.alamat}</span>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className="py-3 px-3 text-left">
+                                          <div className="font-mono font-bold text-slate-700">{vendor.noWa}</div>
+                                          <button
+                                            type="button"
+                                            onClick={() => window.open(`https://wa.me/${waNumber}/?text=${encodeURIComponent(textWA)}`, '_blank', 'noreferrer')}
+                                            className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md border border-emerald-250 cursor-pointer shadow-2xs"
+                                          >
+                                            <MessageSquare className="w-2.5 h-2.5" />
+                                            <span>WhatsApp</span>
+                                          </button>
+                                        </td>
+                                        <td className="py-3 px-3 text-left">
+                                          {vendor.pricelist && vendor.pricelist.length > 0 ? (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10.5px]">
+                                              {vendor.pricelist.map((prod) => (
+                                                <div key={prod.id} className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 flex justify-between items-center">
+                                                  <span className="text-slate-600 font-medium truncate" title={prod.namaProduk}>{prod.namaProduk}</span>
+                                                  <span className="font-mono font-bold text-slate-900 bg-white border border-slate-200 px-1 py-0.5 rounded ml-1">Rp {prod.hargaVendor.toLocaleString('id-ID')}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <span className="text-slate-400 italic text-[10px]">Belum diatur</span>
+                                          )}
+                                        </td>
+                                        <td className="py-3 px-3 text-right">
+                                          <div className="flex items-center justify-end gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleEditVendorClick(vendor)}
+                                              className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-150 rounded transition-all cursor-pointer shadow-2xs"
+                                              title="Ubah Detail Vendor"
+                                            >
+                                              <Settings className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteVendor(vendor.id)}
+                                              className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-150 rounded transition-all cursor-pointer shadow-2xs"
+                                              title="Hapus Vendor"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        /* TAB 6: COMPREHENSIVE B2B AGENT MANAGEMENT */
+                        <div className="p-5 space-y-6">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 text-left">
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-805 flex items-center gap-1.5 font-sans">
+                                <UserCheck className="w-4 h-4 text-purple-600" />
+                                Manajemen Agen B2B & Kemitraan (Diskon Khusus)
+                              </h3>
+                              <p className="text-[11px] text-slate-450 mt-1 font-sans">
+                                Kelola data agen personal maupun perusahaan yang membawa klien untuk AMPM. Atur persentase harga khusus/diskon agen, dan pantau total pesanan yang mereka bawa.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAgent(null);
+                                setAgentNamaInput('');
+                                setAgentTipeInput('personal');
+                                setAgentNoWaInput('');
+                                setAgentEmailInput('');
+                                setAgentDiskonPersenInput(0);
+                                setIsAddingAgent(!isAddingAgent);
+                              }}
+                              className="self-start sm:self-center bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow-xs shrink-0"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>{isAddingAgent ? 'Tutup Form' : 'Tambah Agen Baru'}</span>
+                            </button>
+                          </div>
+
+                          {/* Add / Edit Agent Form */}
+                          {isAddingAgent && (
+                            <form onSubmit={handleAddAgent} className="bg-slate-50/50 p-5 rounded-2xl border border-slate-150 space-y-4 text-left animate-fade-in">
+                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                {editingAgent ? '📋 Detail Agen' : '✨ Daftarkan Agen Baru'}
+                              </h4>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider">Nama Agen / Perusahaan *</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Contoh: Surya Jaya Mulia"
+                                    value={agentNamaInput}
+                                    onChange={(e) => setAgentNamaInput(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-205 focus:border-purple-505 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all text-slate-805"
+                                    required
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider">Tipe Agen *</label>
+                                  <select
+                                    value={agentTipeInput}
+                                    onChange={(e) => setAgentTipeInput(e.target.value as any)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-205 focus:border-purple-505 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all text-slate-805 cursor-pointer"
+                                    required
+                                  >
+                                    <option value="personal">Personal</option>
+                                    <option value="perusahaan">Perusahaan / B2B Klien</option>
+                                  </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider">Kontak WhatsApp *</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Contoh: 08123456789"
+                                    value={agentNoWaInput}
+                                    onChange={(e) => setAgentNoWaInput(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-205 focus:border-purple-505 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all text-slate-805"
+                                    required
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider">Email (Optional)</label>
+                                  <input
+                                    type="email"
+                                    placeholder="Contoh: agent@gloria.com"
+                                    value={agentEmailInput}
+                                    onChange={(e) => setAgentEmailInput(e.target.value)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-205 focus:border-purple-505 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all text-slate-805"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider">Diskon Khusus (%) *</label>
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      placeholder="15"
+                                      value={agentDiskonPersenInput || ''}
+                                      onChange={(e) => setAgentDiskonPersenInput(Number(e.target.value))}
+                                      className="w-full pl-3 pr-8 py-2 bg-white border border-slate-205 focus:border-purple-505 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all text-slate-805"
+                                      required
+                                    />
+                                    <span className="absolute right-3 top-2 text-xs font-bold text-slate-400 font-mono">%</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex justify-end pt-2">
+                                <button
+                                  type="submit"
+                                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md transition-all cursor-pointer"
+                                >
+                                  {editingAgent ? 'Simpan Perubahan' : 'Daftarkan Agen'}
+                                </button>
+                              </div>
+                            </form>
+                          )}
+
+                          {/* Stat summary cards for agents */}
+                          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-left">
+                            <div className="bg-slate-50 border border-slate-150 p-3 rounded-lg">
+                              <span className="block text-[10px] uppercase font-mono text-slate-450 leading-tight">Total Agen Terdaftar</span>
+                              <span className="text-sm font-bold text-slate-605 tracking-tight mt-1 inline-block">
+                                {agents.length} <span className="text-[10px] font-semibold text-slate-500">Agen</span>
+                              </span>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-150 p-3 rounded-lg">
+                              <span className="block text-[10px] uppercase font-mono text-slate-450 leading-tight">Agen Perusahaan / B2B</span>
+                              <span className="text-sm font-bold text-slate-605 tracking-tight mt-1 inline-block">
+                                {agents.filter(a => a.tipe === 'perusahaan').length} <span className="text-[10px] font-semibold text-slate-500">Korporat</span>
+                              </span>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-150 p-3 rounded-lg">
+                              <span className="block text-[10px] uppercase font-mono text-slate-450 leading-tight">Agen Personal</span>
+                              <span className="text-sm font-bold text-slate-605 tracking-tight mt-1 inline-block">
+                                {agents.filter(a => a.tipe === 'personal').length} <span className="text-[10px] font-semibold text-slate-500">Mitra</span>
+                              </span>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-150 p-3 rounded-lg">
+                              <span className="block text-[10px] uppercase font-mono text-slate-450 leading-tight">Total Order via Agen</span>
+                              <span className="text-sm font-bold text-slate-605 tracking-tight mt-1 inline-block">
+                                {leads.filter(l => l.agentId).length} <span className="text-[10px] font-semibold text-slate-500">Order</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Agents Table representation */}
+                          <div className="overflow-x-auto bg-white rounded-3xl">
+                            {filteredAgents.length === 0 ? (
+                              <div className="h-48 flex flex-col items-center justify-center space-y-1.5 p-6 text-slate-505 text-center">
+                                <UserCheck className="w-7 h-7 text-slate-305" />
+                                <p className="text-xs font-semibold text-slate-700">Tidak ada data agen ditemukan</p>
+                                <p className="text-[10.5px] text-slate-400">Gunakan kolom cari diatas atau klik "+ Tambah Agen Baru"</p>
+                              </div>
+                            ) : (
+                              <table className="w-full text-left border-collapse table-fixed">
+                                <thead>
+                                  <tr className="bg-slate-50 border-b border-slate-150 text-[10px] uppercase font-mono text-slate-500 leading-tight">
+                                    <th className="py-2.5 px-3 w-[10%] text-center">ID Agen</th>
+                                    <th className="py-2.5 px-3 w-[25%]">Nama Agen / B2B Klien</th>
+                                    <th className="py-2.5 px-3 w-[15%]">Tipe Kemitraan</th>
+                                    <th className="py-2.5 px-3 w-[20%] font-mono uppercase">Kontak & Email</th>
+                                    <th className="py-2.5 px-3 w-[12%] text-center">Diskon khusus</th>
+                                    <th className="py-2.5 px-3 w-[10%] text-center">Order Bawaan</th>
+                                    <th className="py-2.5 px-3 w-[10%] text-right">Aksi</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                                  {filteredAgents.map((agent) => {
+                                    const agentOrders = leads.filter(l => l.agentId === agent.id);
+                                    const totalRevenue = agentOrders.filter(o => o.isPaid).reduce((sum, o) => sum + (o.dealFinalPrice ?? o.grandTotalCost ?? 0), 0);
+
+                                    return (
+                                      <tr key={agent.id} className="hover:bg-slate-50/50 transition duration-150">
+                                        <td className="py-3 px-3 text-center text-slate-500 font-mono font-bold text-[10.5px]">
+                                          {agent.id}
+                                        </td>
+                                        <td className="py-3 px-3 text-left font-bold text-slate-800">
+                                          {agent.nama}
+                                        </td>
+                                        <td className="py-3 px-3 text-left">
+                                          <span className={`inline-block px-2 py-0.5 rounded-full text-[9.5px] font-extrabold uppercase ${
+                                            agent.tipe === 'perusahaan'
+                                              ? 'bg-purple-105 text-purple-800 border border-purple-200'
+                                              : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                          }`}>
+                                            {agent.tipe === 'perusahaan' ? '🏢 Perusahaan' : '👤 Personal'}
+                                          </span>
+                                        </td>
+                                        <td className="py-3 px-3 text-left space-y-0.5 font-sans">
+                                          <div className="font-mono text-slate-600 font-semibold">{agent.noWa}</div>
+                                          {agent.email && (
+                                            <div className="text-[10px] text-slate-400 font-medium truncate" title={agent.email}>{agent.email}</div>
+                                          )}
+                                        </td>
+                                        <td className="py-3 px-3 text-center">
+                                          <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded-lg border border-amber-200 font-mono font-bold text-[11px]">
+                                            <Percent className="w-3 h-3 text-amber-600" />
+                                            {agent.diskonPersen}%
+                                          </span>
+                                        </td>
+                                        <td className="py-3 px-3 text-center space-y-0.5">
+                                          <div className="font-mono font-bold text-slate-700">{agentOrders.length} Pesanan</div>
+                                          {totalRevenue > 0 && (
+                                            <div className="text-[9.5px] text-emerald-600 font-bold font-mono">Rp {totalRevenue.toLocaleString('id-ID')}</div>
+                                          )}
+                                        </td>
+                                        <td className="py-3 px-3 text-right">
+                                          <div className="flex items-center justify-end gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleEditAgentClick(agent)}
+                                              className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-150 rounded transition-all cursor-pointer shadow-2xs"
+                                              title="Ubah Detail Agen"
+                                            >
+                                              <Settings className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteAgent(agent.id)}
+                                              className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-150 rounded transition-all cursor-pointer shadow-2xs"
+                                              title="Hapus Agen"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -3420,7 +5083,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-650">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-xs text-slate-650">
                         <div className="space-y-2">
                           <h5 className="font-bold text-slate-700 uppercase tracking-wide text-[10px]">Identitas Klien</h5>
                           <p><b>Nama:</b> {selectedAdminLead.customerName}</p>
@@ -3451,6 +5114,65 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                             <span className="font-mono">Rp {selectedAdminLead.grandTotalCost.toLocaleString('id-ID')}</span>
                           </div>
                         </div>
+
+                        <div className="space-y-2 bg-purple-50/50 p-3 rounded-lg border border-purple-150/80">
+                          <h5 className="font-bold text-purple-750 uppercase tracking-wide text-[10px] flex items-center justify-between">
+                            <span>Kemitraan B2B Agen</span>
+                            <UserCheck className="w-3.5 h-3.5 text-purple-600" />
+                          </h5>
+                          <div className="space-y-1">
+                            <label className="block text-[9px] font-bold text-slate-400 uppercase">Pilih Agen Referensi</label>
+                            <select
+                              value={selectedAdminLead.agentId || ''}
+                              onChange={async (e) => {
+                                const val = e.target.value ? Number(e.target.value) : null;
+                                try {
+                                  await fetch(`/api/leads/${selectedAdminLead.id}`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ agentId: val })
+                                  });
+                                  
+                                  const updatedLead = { ...selectedAdminLead, agentId: val };
+                                  setSelectedAdminLead(updatedLead);
+                                  setLeads(prev => prev.map(l => l.id === selectedAdminLead.id ? updatedLead : l));
+                                } catch (err) {
+                                  console.error('Error updating lead agent:', err);
+                                }
+                              }}
+                              className="w-full px-2 py-1 bg-white border border-slate-205 focus:border-purple-505 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all text-slate-805 cursor-pointer"
+                            >
+                              <option value="">— Retail Standar —</option>
+                              {agents.map(a => (
+                                <option key={a.id} value={a.id}>{a.nama}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {(() => {
+                            const matchedAgent = agents.find(a => a.id === selectedAdminLead.agentId);
+                            if (matchedAgent) {
+                              const discountAmount = Math.round(selectedAdminLead.grandTotalCost * (matchedAgent.diskonPersen / 100));
+                              const specialPrice = selectedAdminLead.grandTotalCost - discountAmount;
+                              return (
+                                <div className="pt-2 border-t border-purple-200 text-[11px] space-y-1 text-slate-700">
+                                  <p><b>Nama Agen:</b> {matchedAgent.nama}</p>
+                                  <p><b>Tipe:</b> <span className="uppercase font-extrabold text-[9px] px-1 py-0.2 bg-purple-100 text-purple-800 rounded">{matchedAgent.tipe}</span></p>
+                                  <p><b>Diskon Agen:</b> {matchedAgent.diskonPersen}%</p>
+                                  <div className="font-bold text-purple-705 bg-purple-100/50 p-1.5 rounded border border-purple-200 mt-1">
+                                    <div className="flex justify-between">
+                                      <span>Harga Khusus:</span>
+                                      <span className="font-mono text-purple-900">Rp {specialPrice.toLocaleString('id-ID')}</span>
+                                    </div>
+                                    <div className="text-[9px] text-purple-600 font-medium">Potongan Rp {discountAmount.toLocaleString('id-ID')}</div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <p className="text-[10px] text-slate-400 italic">Pesanan ini tidak dikaitkan dengan agen manapun (harga retail standar).</p>
+                            );
+                          })()}
+                        </div>
                       </div>
 
                       {selectedAdminLead.textExtractedSnippet && (
@@ -3463,7 +5185,6 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       )}
                     </motion.div>
                   )}
-
                 </div>
               </div>
             )}
@@ -3471,404 +5192,7 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
         )}
         </AnimatePresence>
       </main>
-
-      {/* Google Drive Browser Modal overlay */}
-      <AnimatePresence>
-        {driveModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
-            onClick={() => setDriveModalOpen(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 15 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 15 }}
-              transition={{ duration: 0.2 }}
-              className="bg-white rounded-2xl shadow-xl border border-slate-150 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Modal Header */}
-              <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <div className="p-2 bg-indigo-50 text-indigo-700 rounded-lg">
-                    <Folder className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-800 font-display">Pilih Dokumen dari Google Drive</h3>
-                    <p className="text-[10px] text-slate-500 font-medium font-mono">Drive Cloud Storage Explorer</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setDriveModalOpen(false)}
-                  className="p-1 px-2 text-slate-400 hover:text-slate-650 hover:bg-slate-100 rounded-lg transition-all text-xs font-bold font-sans"
-                >
-                  Tutup [X]
-                </button>
-              </div>
-
-              {/* Utility Search & Refresh */}
-              <div className="px-5 py-3 border-b border-slate-100 bg-white flex items-center gap-3">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={driveSearchQuery}
-                    onChange={(e) => setDriveSearchQuery(e.target.value)}
-                    placeholder="Cari file dokumen di Google Drive..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-600 focus:bg-white"
-                  />
-                  <div className="absolute left-2.5 top-2.5 text-slate-400">
-                    <svg xmlns="http://www.w3.org/2500/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-                    </svg>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={loadDriveFilesList}
-                  disabled={isLoadingDrive}
-                  className="p-2 border border-slate-200 hover:border-slate-350 hover:bg-slate-50 rounded-lg transition-all cursor-pointer"
-                  title="Segarkan berkas"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 text-slate-605 ${isLoadingDrive ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
-
-              {/* Files Content Container */}
-              <div className="p-5 overflow-y-auto bg-slate-50/50 flex-1 min-h-[300px]">
-                {isLoadingDrive ? (
-                  <div className="h-48 flex flex-col items-center justify-center space-y-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-indigo-605" />
-                    <span className="text-xs text-slate-555 font-bold">Mengontak API Google Drive...</span>
-                  </div>
-                ) : driveError ? (
-                  <div className="p-4 bg-rose-50 border border-rose-150 text-rose-800 text-xs rounded-xl space-y-2 text-center animate-pulse">
-                    <p className="font-bold">{driveError}</p>
-                    <button
-                      onClick={loadDriveFilesList}
-                      className="bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 font-bold px-3 py-1.5 rounded-lg transition-all text-[11px]"
-                    >
-                      Coba Lagi
-                    </button>
-                  </div>
-                ) : (
-                  (() => {
-                    const filtered = driveFiles.filter(f => 
-                      !f.mimeType?.includes('folder') && // exclude folder types
-                      (f.name || '').toLowerCase().includes(driveSearchQuery.toLowerCase())
-                    );
-
-                    if (filtered.length === 0) {
-                      return (
-                        <div className="h-48 flex flex-col items-center justify-center text-center space-y-1">
-                          <Folder className="w-8 h-8 text-slate-300" />
-                          <h4 className="text-xs font-bold text-slate-650">Tidak ada dokumen didukung</h4>
-                          <p className="text-[10px] text-slate-400 max-w-xs">Pastikan Anda memiliki dokumen JPEG, PNG, atau PDF yang tersimpan di Google Drive.</p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {filtered.map((file) => {
-                          const isDownloading = downloadingDriveFileId === file.id;
-                          const isPdf = file.mimeType?.includes('pdf');
-                          
-                          return (
-                            <div
-                              key={file.id}
-                              onClick={() => !isDownloading && handleSelectDriveFile(file)}
-                              className={`p-3 bg-white border border-slate-200 rounded-xl hover:shadow-xs hover:border-indigo-400 hover:bg-indigo-50/5 cursor-pointer transition-all flex items-start gap-2.5 relative group ${
-                                isDownloading ? 'opacity-60 cursor-wait bg-indigo-50/20' : ''
-                              }`}
-                            >
-                              <div className={`p-2 rounded-lg shrink-0 ${
-                                isPdf ? 'bg-red-50 text-red-650' : 'bg-indigo-50 text-indigo-650'
-                              }`}>
-                                <FileText className="w-4 h-4" />
-                              </div>
-                              <div className="flex-1 min-w-0 text-left">
-                                <span className="block text-xs font-bold text-slate-800 truncate" title={file.name}>
-                                  {file.name}
-                                </span>
-                                <span className="block text-[9px] text-slate-400 font-medium mt-0.5 font-mono">
-                                  {file.size ? `${(parseInt(file.size) / 1024).toFixed(1)} KB` : 'Ukuran tidak diketahui'} • {isPdf ? 'PDF Document' : 'Image File'}
-                                </span>
-                              </div>
-
-                              {isDownloading && (
-                                <div className="absolute inset-0 bg-white/70 flex items-center justify-center gap-1.5 rounded-xl">
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
-                                  <span className="text-[10px] font-bold text-indigo-950 animate-pulse">Mengunduh...</span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-4 border-t border-slate-100 bg-slate-50 text-center text-[10px] text-slate-400 font-semibold flex items-center justify-between">
-                <span>Izin file dijamin aman & dienkripsi via Google OAuth</span>
-                <span>AMPM Translator Hub</span>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* GOOGLE SHEETS & SESSION SETTINGS MODAL */}
-      <AnimatePresence>
-        {isSheetsSettingsOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-white rounded-2xl max-w-lg w-full border border-slate-150 shadow-2xl overflow-hidden flex flex-col text-left font-sans my-auto animate-fade-in"
-            >
-              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <div className="flex items-center space-x-2">
-                  <div className="p-2 bg-emerald-50 text-emerald-800 rounded-lg">
-                    <FileSpreadsheetIcon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-800 font-display">Pengaturan Google Sheets & Sesi</h3>
-                    <p className="text-[10px] text-slate-400 font-mono font-medium">Konfigurasi Sinkronisasi Database Prospek</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSheetsSettingsOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded bg-slate-100/50 hover:bg-slate-100 transition cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-                {/* Simplified Google Sheet Integration Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 className="font-bold text-xs text-slate-705 uppercase tracking-wider font-sans">1. Integrasi Google Sheets</h4>
-                    <span className="inline-flex bg-emerald-50 text-emerald-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-emerald-100">
-                      Aktif & Direkomendasikan
-                    </span>
-                  </div>
-
-                  {/* Friendly Step-by-Step Info for laymen */}
-                  <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-150 space-y-2 text-left">
-                    <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wide block">
-                      💡 Cara Pakai Sangat Mudah:
-                    </span>
-                    <ul className="text-[10px] text-slate-500 space-y-1.5 leading-relaxed font-semibold">
-                      <li className="flex items-start gap-1">
-                        <span className="text-indigo-600 font-bold">1.</span>
-                        <span>Hubungkan Google Drive toko Anda dengan menekan tombol Google di bawah.</span>
-                      </li>
-                      <li className="flex items-start gap-1">
-                        <span className="text-indigo-600 font-bold">2.</span>
-                        <span>Pilih nama file Google Sheets Anda dari dropdown, atau buat otomatis dengan klik buatan database baru.</span>
-                      </li>
-                      <li className="flex items-start gap-1">
-                        <span className="text-indigo-600 font-bold">3.</span>
-                        <span>Aktifkan "Direct Sync" agar data pesanan klien terkirim saat itu juga!</span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  {!gUser ? (
-                    <div className="space-y-4">
-                      <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
-                        Akun belum tersambung. Hubungkan akun Google Drive toko untuk menulis prospek ke spreadsheet excel secara langsung.
-                      </p>
-                      
-                      <button
-                        type="button"
-                        onClick={handleGoogleLogin}
-                        className="gsi-material-button w-full cursor-pointer hover:bg-slate-50 border border-slate-200 transition-all shadow-xs rounded-xl py-2 flex items-center justify-center bg-white"
-                      >
-                        <div className="gsi-material-button-state"></div>
-                        <div className="gsi-material-button-content-wrapper flex items-center gap-2">
-                          <div className="gsi-material-button-icon shrink-0">
-                            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style={{ display: 'block', width: '20px', height: '20px' }}>
-                              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                              <path fill="none" d="M0 0h48v48H0z"></path>
-                            </svg>
-                          </div>
-                          <span className="gsi-material-button-contents text-xs font-bold text-slate-705">Hubungkan Akun Google Toko</span>
-                        </div>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* Logged in indicator */}
-                      <div className="p-3 bg-indigo-50/50 rounded-xl flex items-center justify-between border border-indigo-100 text-left">
-                        <div className="flex items-center gap-2">
-                          {gUser.photoURL ? (
-                            <img src={gUser.photoURL} alt="Google" className="w-8 h-8 rounded-full border border-indigo-150" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs select-none">
-                              {gUser.displayName?.charAt(0) || 'U'}
-                            </div>
-                          )}
-                          <div className="text-left leading-none">
-                            <span className="block text-xs font-bold text-slate-800">{gUser.displayName || 'Akun Admin'}</span>
-                            <span className="block text-[9px] text-slate-405 mt-1">{gUser.email}</span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleGoogleLogout}
-                          className="p-1.5 text-rose-605 hover:text-rose-700 hover:bg-rose-50/50 rounded-lg transition duration-150 text-[10px] font-bold flex items-center space-x-1 cursor-pointer"
-                          title="Sign Out Google"
-                        >
-                          <LogOut className="w-3 h-3" />
-                          <span>Disconnect</span>
-                        </button>
-                      </div>
-
-                      <div className="space-y-3 text-left">
-                        {/* Selector sheet */}
-                        <div className="space-y-1.5">
-                          <label className="block text-xs font-bold text-slate-655 font-sans">Pilih Google Sheet Tujuan:</label>
-                          {isLoadingGSheets ? (
-                            <div className="flex items-center space-x-1.5 text-slate-450 py-1 text-xs font-medium">
-                              <Loader2 className="w-3 h-3 animate-spin text-indigo-600" />
-                              <span>Membaca daftar file...</span>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <select
-                                value={sheetsConfig.googleSpreadsheetId || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  const updated = { ...sheetsConfig, googleSpreadsheetId: val };
-                                  setSheetsConfig(updated);
-                                  fetch('/api/sheet-config', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(updated)
-                                  });
-                                }}
-                                className="w-full px-3 py-2 rounded-lg border border-slate-205 bg-slate-50 text-slate-705 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all cursor-pointer font-sans"
-                              >
-                                <option value="">-- Silakan Pilih File Excel Anda --</option>
-                                {gSpreadsheets.length > 0 ? (
-                                  gSpreadsheets.map(sh => (
-                                    <option key={sh.id} value={sh.id}>{sh.name}</option>
-                                  ))
-                                ) : (
-                                  <option disabled>Tidak ditemukan file spreadsheet di Drive</option>
-                                )}
-                              </select>
-
-                              <button
-                                type="button"
-                                onClick={handleCreateAutoSheet}
-                                disabled={isCreatingGSheet}
-                                className="w-full bg-slate-100 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-indigo-750 font-bold text-[11px] py-1.5 px-3 rounded-lg flex items-center justify-center space-x-1 transition-all disabled:opacity-50 cursor-pointer"
-                              >
-                                {isCreatingGSheet ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 text-indigo-600" /> : <Plus className="w-3.5 h-3.5" />}
-                                <span>{isCreatingGSheet ? 'Sedang Membuat...' : 'Buat Database Sheet Baru'}</span>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Direct Sync enabled checkbox switch */}
-                        <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-150">
-                          <div className="space-y-0.5">
-                            <span className="block text-xs font-bold text-slate-800">Sinkron Otomatis (Direct Sync)</span>
-                            <span className="block text-[9px] text-slate-400 leading-relaxed font-semibold">Tulis otomatis tiap klien submit form</span>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={!!sheetsConfig.googleDirectSyncEnabled}
-                              onChange={(e) => {
-                                const val = e.target.checked;
-                                const updated = { ...sheetsConfig, googleDirectSyncEnabled: val };
-                                setSheetsConfig(updated);
-                                fetch('/api/sheet-config', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify(updated)
-                                });
-                              }}
-                              disabled={!sheetsConfig.googleSpreadsheetId}
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-305 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-45"></div>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Simple Admin Session Card to easily Logan / Logout session */}
-                <div className="border-t border-slate-100 pt-5 space-y-3">
-                  <h4 className="font-bold text-xs text-slate-705 uppercase tracking-wider font-sans">2. Sesi Kerja Administrator</h4>
-                  <div className="bg-slate-50 rounded-xl border border-slate-150 p-4 space-y-3.5 text-left font-sans">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-1.5 text-slate-705">
-                        <Lock className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="text-xs font-bold font-sans">Sesi Kerja Administrator</span>
-                      </div>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Sesi Aktif"></span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
-                      Anda masuk sebagai <strong className="text-slate-800">admin</strong>. Keamanan sesi tersimpan di perangkat lokal Anda demi kerahasiaan client.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm('Apakah Anda yakin ingin keluar dari sesi kerja Admin?')) {
-                          localStorage.removeItem('ampm_admin_logged_in');
-                          setIsAdminLoggedIn(false);
-                          setAdminUsername('');
-                          setAdminPassword('');
-                          setIsSheetsSettingsOpen(false);
-                        }
-                      }}
-                      className="w-full text-xs font-bold text-rose-600 hover:text-white bg-white hover:bg-rose-600 border border-slate-205 hover:border-rose-600 py-2 rounded-lg transition-all duration-150 flex items-center justify-center space-x-1 cursor-pointer"
-                    >
-                      <LogOut className="w-3 h-3" />
-                      <span>Keluar Sesi / Logout Admin</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsSheetsSettingsOpen(false)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition"
-                >
-                  Tutup Pengaturan
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+   
       {/* 1. EDIT DEAL DETAILS MODAL */}
       <AnimatePresence>
         {dealEditLead && (
@@ -4458,196 +5782,543 @@ Mohon bantuannya untuk memproses pesanan saya. Terima kasih!`;
                       </div>
                     </div>
                   </div>
-                </div>
 
+                </div>
               </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       {/* 3. PRINTABLE INVOICE MODAL */}
       <AnimatePresence>
-        {invoiceModalLead && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex justify-center overflow-y-auto p-4 sm:p-6"
-          >
+        {invoiceModalLead && (() => {
+          const styles = {
+            emerald: {
+              primaryBg: 'bg-emerald-600',
+              hoverBg: 'hover:bg-emerald-700',
+              primaryBorder: 'border-emerald-600',
+              primaryText: 'text-emerald-700',
+              primaryTextDark: 'text-emerald-950',
+              tableHeaderBg: 'bg-emerald-50/50 border-emerald-100',
+              brandBadge: 'bg-emerald-100 text-emerald-800',
+              iconBg: 'bg-emerald-600',
+              stampBorder: 'border-emerald-500/20',
+              stampText: 'text-emerald-600 border-emerald-550',
+              statusBadge: 'text-emerald-800 border-emerald-300 bg-emerald-50'
+            },
+            slate: {
+              primaryBg: 'bg-slate-800',
+              hoverBg: 'hover:bg-slate-900',
+              primaryBorder: 'border-slate-800',
+              primaryText: 'text-slate-800',
+              primaryTextDark: 'text-slate-900',
+              tableHeaderBg: 'bg-slate-50 border-slate-200',
+              brandBadge: 'bg-slate-200 text-slate-800',
+              iconBg: 'bg-slate-800',
+              stampBorder: 'border-slate-500/20',
+              stampText: 'text-slate-800 border-slate-700',
+              statusBadge: 'text-slate-800 border-slate-300 bg-slate-100'
+            },
+            royal: {
+              primaryBg: 'bg-indigo-600',
+              hoverBg: 'hover:bg-indigo-750',
+              primaryBorder: 'border-indigo-600',
+              primaryText: 'text-indigo-700',
+              primaryTextDark: 'text-indigo-950',
+              tableHeaderBg: 'bg-indigo-50/50 border-indigo-100',
+              brandBadge: 'bg-indigo-100 text-indigo-800',
+              iconBg: 'bg-indigo-600',
+              stampBorder: 'border-indigo-500/20',
+              stampText: 'text-indigo-600 border-indigo-550',
+              statusBadge: 'text-indigo-800 border-indigo-300 bg-indigo-50'
+            },
+            minimal: {
+              primaryBg: 'bg-rose-600',
+              hoverBg: 'hover:bg-rose-750',
+              primaryBorder: 'border-rose-600',
+              primaryText: 'text-rose-700',
+              primaryTextDark: 'text-rose-950',
+              tableHeaderBg: 'bg-rose-50/50 border-rose-100',
+              brandBadge: 'bg-rose-100 text-rose-800',
+              iconBg: 'bg-rose-600',
+              stampBorder: 'border-rose-500/20',
+              stampText: 'text-rose-600 border-rose-550',
+              statusBadge: 'text-rose-800 border-rose-300 bg-rose-50'
+            }
+          }[selectedInvoiceTemplate] || {
+            primaryBg: 'bg-emerald-600',
+            hoverBg: 'hover:bg-emerald-700',
+            primaryBorder: 'border-emerald-600',
+            primaryText: 'text-emerald-700',
+            primaryTextDark: 'text-emerald-950',
+            tableHeaderBg: 'bg-emerald-50/50 border-emerald-100',
+            brandBadge: 'bg-emerald-100 text-emerald-800',
+            iconBg: 'bg-emerald-600',
+            stampBorder: 'border-emerald-500/20',
+            stampText: 'text-emerald-600 border-emerald-550',
+            statusBadge: 'text-emerald-800 border-emerald-300 bg-emerald-50'
+          };
+
+          const subtotal = invoiceModalLead.invoiceItems && invoiceModalLead.invoiceItems.length > 0
+            ? invoiceModalLead.invoiceItems.reduce((acc: number, item: any) => acc + ((item.harga || 0) * (item.qty || 1)), 0)
+            : (invoiceModalLead.dealFinalPrice ?? invoiceModalLead.grandTotalCost ?? invoiceModalLead.totalTranslationCost ?? 0);
+
+          const discountAmount = (subtotal * invoiceDiscountRate) / 100;
+          const taxAmount = ((subtotal - discountAmount) * invoiceTaxRate) / 100;
+          const grandTotal = subtotal - discountAmount + taxAmount;
+
+          return (
             <motion.div
-              initial={{ scale: 0.97, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.97, y: 20 }}
-              className="bg-white rounded-2xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col my-auto text-slate-800"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex justify-center overflow-y-auto p-4 sm:p-6"
             >
-              {/* Modal Banner Control - Hide during window.print() */}
-              <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between px-6 sticky top-0 bg-white/95 backdrop-blur-md z-10 print:hidden text-left">
-                <div>
-                  <h3 className="font-bold text-xs text-slate-800 tracking-wider uppercase">Faktur Penagihan Digital (Invoice)</h3>
-                  <p className="text-[10px] text-slate-455">Diterbitkan instan dari nilai deal disepakati administrator</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 px-3.5 rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer"
-                  >
-                    <Receipt className="w-3.5 h-3.5" />
-                    <span>Print Kwitansi Invoice</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceModalLead(null)}
-                    className="p-2 text-slate-400 hover:text-slate-600 rounded bg-slate-100 transition cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+              <motion.div
+                initial={{ scale: 0.97, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.97, y: 20 }}
+                className="bg-white rounded-2xl max-w-4xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col my-auto text-slate-800"
+              >
+                {/* Modal Banner Control - Hide during window.print() */}
+                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between px-6 sticky top-0 bg-white/95 backdrop-blur-md z-10 print:hidden text-left">
+                  <div>
+                    <h3 className="font-bold text-xs text-slate-800 tracking-wider uppercase">Faktur Penagihan Digital (Invoice)</h3>
+                    <p className="text-[10px] text-slate-455">Template Terpilih: <strong className="capitalize text-slate-700">{selectedInvoiceTemplate} Professional</strong></p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {/* Inline Template Selection */}
+                    <select
+                      value={selectedInvoiceTemplate}
+                      onChange={(e) => setSelectedInvoiceTemplate(e.target.value as any)}
+                      className="text-xs bg-white border border-slate-250 py-1.5 px-2 rounded-lg font-bold focus:outline-none"
+                    >
+                      <option value="emerald">Emerald Theme (Default)</option>
+                      <option value="slate">Midnight Slate Theme</option>
+                      <option value="royal">Royal Cobalt Theme</option>
+                      <option value="minimal">Minimal Crimson Theme</option>
+                    </select>
 
-              {/* Physical A4 printable Sheet document */}
-              <div id="invoice-print-area" className="p-8 sm:p-12 text-left bg-white text-slate-850 font-sans max-w-[210mm] mx-auto min-h-[297mm] flex flex-col justify-between">
-                
-                <div>
-                  {/* Header Letterhead container */}
-                  <div className="flex items-start justify-between border-b-2 border-emerald-600 pb-5">
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        {/* Stamp style official brand representation */}
-                        <div className="w-8 h-8 rounded-lg bg-emerald-650 flex items-center justify-center text-white font-black text-sm select-none">
-                          AM
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className={`${styles.primaryBg} ${styles.hoverBg} text-white font-bold text-xs py-2 px-3.5 rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer`}
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>Print / Simpan PDF</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceModalLead(null)}
+                      className="p-2 text-slate-400 hover:text-slate-600 rounded bg-slate-100 transition cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Physical A4 printable Sheet document */}
+                <div id="invoice-print-area" className="p-8 sm:p-12 text-left bg-white text-slate-850 font-sans max-w-[210mm] mx-auto min-h-[297mm] flex flex-col justify-between">
+                  
+                  <div>
+                    {/* Header Letterhead container */}
+                    <div className={`flex items-start justify-between border-b-2 ${styles.primaryBorder} pb-5`}>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          {/* Stamp style official brand representation */}
+                          <div className={`w-8 h-8 rounded-lg ${styles.iconBg} flex items-center justify-center text-white font-black text-sm select-none`}>
+                            AM
+                          </div>
+                          <span className="text-sm font-bold text-slate-900 tracking-tight font-display font-sans uppercase">AMPM Sworn Translator</span>
                         </div>
-                        <span className="text-sm font-bold text-slate-900 tracking-tight font-display font-sans uppercase">AMPM Sworn Translator</span>
+                        <span className="block text-[9.5px] text-slate-500 font-medium leading-relaxed max-w-sm">
+                          SK Kemenkumham Kanwil DKI Jakarta. Jl. Dr. Saharjo No.111, Tebet, Jakarta Selatan. Telp/WA: +62 822-4040-4545 | hello@ampmtranslator.com
+                        </span>
                       </div>
-                      <span className="block text-[9.5px] text-slate-500 font-medium leading-relaxed max-w-sm">
-                        SK Kemenkumham Kanwil DKI Jakarta. Jl. Dr. Saharjo No.111, Tebet, Jakarta Selatan. Telp/WA: +62 822-4040-4545 | hello@ampmtranslator.com
-                      </span>
+
+                      <div className="text-right space-y-1 shrink-0">
+                        <span className={`inline-flex ${styles.brandBadge} text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider uppercase mb-1`}>OFFICIAL INVOICE</span>
+                        <h4 className="text-[11px] font-bold text-slate-800 font-mono">No: AMP-INV-{(new Date().getFullYear())}{(String(new Date().getMonth()+1).padStart(2, '0'))}-{invoiceModalLead.id.toUpperCase()}</h4>
+                        <p className="text-[10px] text-slate-400 font-medium font-sans">Jatuh Tempo: {invoiceModalLead.dealDeadline ? new Date(invoiceModalLead.dealDeadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Segera'}</p>
+                      </div>
                     </div>
 
-                    <div className="text-right space-y-1 shrink-0">
-                      <span className="inline-flex bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider uppercase mb-1">OFFICIAL INVOICE</span>
-                      <h4 className="text-[11px] font-bold text-slate-800 font-mono">No: AMP-INV-{(new Date().getFullYear())}{(String(new Date().getMonth()+1).padStart(2, '0'))}-{invoiceModalLead.id.toUpperCase()}</h4>
-                      <p className="text-[10px] text-slate-400 font-medium">Jatuh Tempo: {invoiceModalLead.dealDeadline ? new Date(invoiceModalLead.dealDeadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Segera'}</p>
+                    {/* To Destination Customer Details split panel */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 text-xs text-slate-600">
+                      <div className="space-y-1 leading-relaxed">
+                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Ditagihkan Kepada:</span>
+                        <span className="block font-bold text-slate-900 text-sm whitespace-nowrap">{invoiceModalLead.customerName}</span>
+                        <span className="block font-medium font-mono text-[11px] text-slate-600">{invoiceModalLead.customerWhatsapp}</span>
+                        {invoiceModalLead.customerEmail && <span className="block text-[10px] text-slate-450">{invoiceModalLead.customerEmail}</span>}
+                      </div>
+
+                      <div className="sm:text-right space-y-0.5 text-xs">
+                        <span className="block text-[10px] sm:text-right font-bold text-slate-400 uppercase tracking-wide font-sans">Informasi Pembayaran Mandiri / BCA:</span>
+                        <span className="block font-bold text-slate-900 font-sans font-sans">No. Rekening Mandiri: 124-000-999-5252</span>
+                        <span className="block font-bold text-slate-900 font-sans font-sans">No. Rekening BCA: 224-101-4444</span>
+                        <span className="block font-medium text-slate-650">Atas Nama: PT AMPM Sworn Translator Jasa</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* To Destination Customer Details split panel */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-6 text-xs text-slate-600">
-                    <div className="space-y-1 leading-relaxed">
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Ditagihkan Kepada:</span>
-                      <span className="block font-bold text-slate-900 text-sm whitespace-nowrap">{invoiceModalLead.customerName}</span>
-                      <span className="block font-medium font-mono text-[11px] text-slate-600">{invoiceModalLead.customerWhatsapp}</span>
-                      {invoiceModalLead.customerEmail && <span className="block text-[10px] text-slate-450">{invoiceModalLead.customerEmail}</span>}
-                    </div>
+                    {/* Line Separator */}
+                    <p className="text-xs text-slate-600 mt-6 leading-relaxed">
+                      Faktur kwitansi penagihan ini resmi dikeluarkan sebagai tagihan pelunasan terhadap proyek jasa penerjemahan berkas berikut yang telah disetujui:
+                    </p>
 
-                    <div className="sm:text-right space-y-0.5 text-xs">
-                      <span className="block text-[10px] sm:text-right font-bold text-slate-400 uppercase tracking-wide font-sans">Informasi Pembayaran Mandiri / BCA:</span>
-                      <span className="block font-bold text-slate-900 font-sans">No. Rekening Mandiri: 124-000-999-5252</span>
-                      <span className="block font-bold text-slate-900 font-sans">No. Rekening BCA: 224-101-4444</span>
-                      <span className="block font-medium text-slate-650">Atas Nama: PT AMPM Sworn Translator Jasa</span>
-                    </div>
-                  </div>
-
-                  {/* Line Separator */}
-                  <p className="text-xs text-slate-600 mt-6 leading-relaxed">
-                    Faktur kwitansi penagihan ini resmi dikeluarkan sebagai tagihan pelunasan terhadap proyek jasa penerjemahan berkas berikut yang telah disetujui:
-                  </p>
-
-                  {/* Financial items cost table breakdown layout */}
-                  <table className="w-full text-xs text-left border-collapse mt-5">
-                    <thead>
-                      <tr className="bg-emerald-50/50 text-[10px] font-bold text-emerald-950 uppercase border-y border-emerald-105">
-                        <th className="py-2.5 px-3 w-3/5">Rincian Paket & Aktivitas Penerjemahan</th>
-                        <th className="py-2.5 px-3 text-center">Halaman</th>
-                        <th className="py-2.5 px-3 text-right">Harga Final</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-705">
-                      {invoiceModalLead.invoiceItems && invoiceModalLead.invoiceItems.length > 0 ? (
-                        invoiceModalLead.invoiceItems.map((item: any, idx: number) => (
-                          <tr key={item.id || idx}>
-                            <td className="py-3 px-3 col-span-1">
-                              <span className="block font-bold text-slate-805">{item.nama}</span>
-                              <span className="block text-[8.5px] text-slate-400 font-mono">Item #{idx + 1}</span>
+                    {/* Financial items cost table breakdown layout */}
+                    <table className="w-full text-xs text-left border-collapse mt-5">
+                      <thead>
+                        <tr className={`${styles.tableHeaderBg} text-[10px] font-bold ${styles.primaryTextDark} uppercase border-y`}>
+                          <th className="py-2.5 px-3 w-3/5">Rincian Paket & Aktivitas Penerjemahan</th>
+                          <th className="py-2.5 px-3 text-center">Halaman</th>
+                          <th className="py-2.5 px-3 text-right">Harga Final</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-705">
+                        {invoiceModalLead.invoiceItems && invoiceModalLead.invoiceItems.length > 0 ? (
+                          invoiceModalLead.invoiceItems.map((item: any, idx: number) => (
+                            <tr key={item.id || idx}>
+                              <td className="py-3 px-3 col-span-1">
+                                <span className="block font-bold text-slate-805">{item.nama}</span>
+                                <span className="block text-[8.5px] text-slate-400 font-mono">Item #{idx + 1}</span>
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-semibold text-slate-600">{item.qty || 1} x Rp {(item.harga || 0).toLocaleString('id-ID')}</td>
+                              <td className="py-3 px-3 text-right font-mono font-bold text-slate-805">
+                                Rp {((item.harga || 0) * (item.qty || 1)).toLocaleString('id-ID')}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td className="py-3.5 px-3">
+                              <span className="block font-bold text-slate-800">Paket Dokumen {invoiceModalLead.translationType === 'sworn' ? 'Kategori Sworn (Tersumpah DKI)' : 'Kategori Reguler (Biasa Bisnis)'}</span>
+                              <span className="block text-[10px] text-slate-450 font-mono">Kode Estimasi: {invoiceModalLead.id} | File: {invoiceModalLead.fileName}</span>
                             </td>
-                            <td className="py-3 px-3 text-center font-mono font-semibold text-slate-600">{item.qty || 1} x Rp {(item.harga || 0).toLocaleString('id-ID')}</td>
-                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-805">
-                              Rp {((item.harga || 0) * (item.qty || 1)).toLocaleString('id-ID')}
+                            <td className="py-3.5 px-3 text-center font-mono font-bold text-slate-600">{invoiceModalLead.calculatedStandardPages} Hal</td>
+                            <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-800">
+                              Rp {(invoiceModalLead.dealFinalPrice ?? invoiceModalLead.grandTotalCost ?? invoiceModalLead.totalTranslationCost ?? 0).toLocaleString('id-ID')}
                             </td>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td className="py-3.5 px-3">
-                            <span className="block font-bold text-slate-800">Paket Dokumen {invoiceModalLead.translationType === 'sworn' ? 'Kategori Sworn (Tersumpah DKI)' : 'Kategori Reguler (Biasa Bisnis)'}</span>
-                            <span className="block text-[10px] text-slate-450 font-mono">Kode Estimasi: {invoiceModalLead.id} | File: {invoiceModalLead.fileName}</span>
-                          </td>
-                          <td className="py-3.5 px-3 text-center font-mono font-bold text-slate-600">{invoiceModalLead.calculatedStandardPages} Hal</td>
-                          <td className="py-3.5 px-3 text-right font-mono font-bold text-slate-800">
-                            Rp {(invoiceModalLead.dealFinalPrice ?? invoiceModalLead.grandTotalCost ?? invoiceModalLead.totalTranslationCost ?? 0).toLocaleString('id-ID')}
+                        )}
+
+                        {/* Subtotal Row */}
+                        <tr className="border-t border-slate-200">
+                          <td colSpan={2} className="py-2 px-3 text-right font-bold text-slate-550 text-[10px]">SUBTOTAL:</td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-800 text-xs">
+                            Rp {subtotal.toLocaleString('id-ID')}
                           </td>
                         </tr>
+
+                        {/* Optional Discount row */}
+                        {invoiceDiscountRate > 0 && (
+                          <tr className="text-emerald-700">
+                            <td colSpan={2} className="py-1 px-3 text-right font-bold text-[10px]">DISKON ({invoiceDiscountRate}%):</td>
+                            <td className="py-1 px-3 text-right font-mono font-bold text-xs">
+                              - Rp {discountAmount.toLocaleString('id-ID')}
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Optional Tax row */}
+                        {invoiceTaxRate > 0 && (
+                          <tr className="text-slate-600">
+                            <td colSpan={2} className="py-1 px-3 text-right font-bold text-[10px]">PPN ({invoiceTaxRate}%):</td>
+                            <td className="py-1 px-3 text-right font-mono font-bold text-xs">
+                              + Rp {taxAmount.toLocaleString('id-ID')}
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Grand total */}
+                        <tr className="bg-slate-50 border-t-2 border-slate-200">
+                          <td colSpan={2} className="py-3.5 px-3 text-right font-bold text-slate-800 text-[11px] uppercase tracking-wider">TOTAL TAGIHAN BERSIH (NET DUE):</td>
+                          <td className="py-3.5 px-3 text-right font-mono font-black text-emerald-600 text-sm">
+                            Rp {grandTotal.toLocaleString('id-ID')}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    {/* Terms and conditions block clause */}
+                    <div className="mt-8 space-y-1.5 text-slate-455 border-t border-slate-100 pt-5 text-[10px] leading-relaxed">
+                      <span className="block font-bold text-slate-700 uppercase tracking-wider text-[9px] mb-1">PANDUAN KONFIRMASI PEMBAYARAN:</span>
+                      {invoiceCustomNote ? (
+                        <div className="whitespace-pre-line text-slate-600 leading-relaxed font-sans">{invoiceCustomNote}</div>
+                      ) : (
+                        <ol className="list-decimal pl-3 space-y-1">
+                          <li>Silakan lampirkan bukti transfer bank resmi Anda ke admin WhatsApp AMPM Hub untuk verifikasi penyelesaian berkas.</li>
+                          <li>Pembayaran dianggap lunas apabila dana telah masuk efektif ke rekening korporasi PT AMPM.</li>
+                          <li>Hasil akhir terjemahan legal tersumpah hardcopy dikirimkan sesegera mungkin sesudah verifikasi dana masuk.</li>
+                        </ol>
                       )}
-
-                      {/* Row 3: Grand total */}
-                      <tr className="bg-slate-50 border-t-2 border-slate-200">
-                        <td colSpan={2} className="py-3.5 px-3 text-right font-bold text-slate-800 text-[11px] uppercase tracking-wider">TOTAL TAGIHAN BERSIH (NET DUE):</td>
-                        <td className="py-3.5 px-3 text-right font-mono font-black text-emerald-600 text-sm">
-                          Rp {(invoiceModalLead.dealFinalPrice ?? invoiceModalLead.grandTotalCost ?? 0).toLocaleString('id-ID')}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  {/* Terms and conditions block clause */}
-                  <div className="mt-8 space-y-1.5 text-slate-455 border-t border-slate-100 pt-5 text-[10px] leading-relaxed">
-                    <span className="block font-bold text-slate-700 uppercase tracking-wider text-[9px] mb-1">PANDUAN KONFIRMASI PEMBAYARAN:</span>
-                    <ol className="list-decimal pl-3 space-y-1">
-                      <li>Silakan lampirkan bukti transfer bank resmi Anda ke admin WhatsApp AMPM Hub untuk verifikasi penyelesaian berkas.</li>
-                      <li>Pembayaran dianggap lunas apabila dana telah masuk efektif ke rekening korporasi PT AMPM.</li>
-                      <li>Hasil akhir terjemahan legal tersumpah hardcopy dikirimkan sesegera mungkin sesudah verifikasi dana masuk.</li>
-                    </ol>
-                  </div>
-                </div>
-
-                {/* Stamp & Authorized Signature layout block */}
-                <div className="flex items-end justify-between mt-10 pt-6">
-                  <div className="text-[10px] text-slate-400 space-y-1.5">
-                    <span className="block font-medium">Diterbitkan oleh PT AMPM Sworn Translator Jasa</span>
-                    <span className="block text-[8.5px] text-emerald-800 font-bold border border-emerald-300 bg-emerald-50 rounded-md px-1.5 py-0.5 w-fit">STATUS: LUNAS / TERKONFIRMASI</span>
-                  </div>
-
-                  {/* Stamp Seal Graphic with absolute signature layered under it */}
-                  <div className="text-center relative w-44 h-32 mr-4 flex flex-col items-center justify-end select-none">
-                    {/* Signed Director */}
-                    <span className="block text-xs font-bold text-slate-900 border-b border-slate-300 pb-1 w-full max-w-sm">Syahrul Mauluddin</span>
-                    <span className="block text-[10px] text-slate-400 mt-1 font-medium">Direktur Utama - AMPM Translator</span>
-
-                    {/* Paid Stamp overlay in nice green stamp circular style */}
-                    <div className="absolute top-1 right-7 w-24 h-24 rounded-full border-4 border-emerald-500/20 flex flex-col items-center justify-center rotate-12 pointer-events-none select-none">
-                      <div className="border border-emerald-550 rounded-full p-2 text-center text-[8px] text-emerald-600 font-black leading-none tracking-tight">
-                        <span className="block">PAID / LUNAS</span>
-                        <span className="block font-mono text-[5px] mt-0.5">TERSELIKIDIK</span>
-                        <span className="block font-mono text-[4px] mt-0.5">THANK YOU!</span>
-                      </div>
                     </div>
                   </div>
-                </div>
 
-              </div>
+                  {/* Stamp & Authorized Signature layout block */}
+                  <div className="flex items-end justify-between mt-10 pt-6">
+                    <div className="text-[10px] text-slate-400 space-y-1.5">
+                      <span className="block font-medium">Diterbitkan oleh PT AMPM Sworn Translator Jasa</span>
+                      <span className={`block text-[8.5px] font-bold border rounded-md px-1.5 py-0.5 w-fit ${styles.statusBadge}`}>STATUS: {invoiceModalLead.isPaid ? 'LUNAS / TERKONFIRMASI' : 'MENUNGGU PEMBAYARAN'}</span>
+                    </div>
+
+                    {/* Stamp Seal Graphic with absolute signature layered under it */}
+                    <div className="text-center relative w-44 h-32 mr-4 flex flex-col items-center justify-end select-none">
+                      {/* Signed Director */}
+                      <span className="block text-xs font-bold text-slate-900 border-b border-slate-300 pb-1 w-full max-w-sm">Syahrul Mauluddin</span>
+                      <span className="block text-[10px] text-slate-400 mt-1 font-medium">Direktur Utama - AMPM Translator</span>
+
+                      {/* Paid Stamp overlay in nice green stamp circular style */}
+                      {invoiceModalLead.isPaid && (
+                        <div className={`absolute top-1 right-7 w-24 h-24 rounded-full border-4 ${styles.stampBorder} flex flex-col items-center justify-center rotate-12 pointer-events-none select-none`}>
+                          <div className={`border ${styles.stampText} rounded-full p-2 text-center text-[8px] font-black leading-none tracking-tight`}>
+                            <span className="block">PAID / LUNAS</span>
+                            <span className="block font-mono text-[5px] mt-0.5">TERSELIKIDIK</span>
+                            <span className="block font-mono text-[4px] mt-0.5">THANK YOU!</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
+          );
+        })()}
       </AnimatePresence>
 
       {/* Humble Footer */}
       <footer className="bg-white border-t border-slate-150 py-6 text-center text-xs text-slate-400 font-medium">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className="w-full px-4 sm:px-8 lg:px-12">
           <p>© {new Date().getFullYear()} AMPM Sworn Translator. Seluruh hak cipta dilindungi undang-undang.</p>
           <p className="mt-0.5 text-slate-350">Dirancang secara eksklusif dengan presisi tarif retail legal Indonesia.</p>
+          <div className="mt-3.5 flex items-center justify-center gap-4 text-[11px] text-slate-400">
+            <button
+              onClick={() => navigateTo('public')}
+              className="hover:text-indigo-600 transition font-bold uppercase tracking-wider text-[10px] cursor-pointer"
+            >
+              Kalkulator Estimasi
+            </button>
+            <span className="text-slate-200">•</span>
+            <button
+              onClick={() => navigateTo('admin')}
+              className="hover:text-indigo-600 transition font-bold uppercase tracking-wider text-[10px] cursor-pointer flex items-center gap-1"
+            >
+              <Lock className="w-3 h-3 text-indigo-500/85" />
+              <span>Portal Admin & CRM</span>
+            </button>
+          </div>
         </div>
       </footer>
+
+      {/* 4. FIX ORDER / WORK ORDER MODAL FOR VENDORS */}
+      <AnimatePresence>
+        {fixOrderModalLead && (() => {
+          const matchedVendor = vendors.find(v => v.id === selectedWorkOrderVendorId);
+          
+          // Try to automatically find matched rate/price from the vendor's pricelist
+          let estimatedRate: number | null = null;
+          if (matchedVendor && matchedVendor.pricelist) {
+            const lowerLangs = fixOrderModalLead.targetLanguage.toLowerCase();
+            const foundItem = matchedVendor.pricelist.find(p => 
+              lowerLangs.includes(p.namaProduk.toLowerCase()) || 
+              p.namaProduk.toLowerCase().includes(lowerLangs)
+            );
+            if (foundItem) {
+              estimatedRate = foundItem.hargaVendor;
+            }
+          }
+
+          const totalVol = fixOrderModalLead.wordCount 
+            ? `${fixOrderModalLead.wordCount.toLocaleString('id-ID')} kata` 
+            : `${fixOrderModalLead.calculatedStandardPages} halaman`;
+            
+          const deadlineText = fixOrderModalLead.dealDeadline 
+            ? new Date(fixOrderModalLead.dealDeadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) 
+            : 'ASAP / Segera';
+
+          const waWorkOrderMsg = `*SURAT PERINTAH KERJA (FIX ORDER) - PT AMPM SWORN TRANSLATOR*\n\n` +
+            `Yth. Rekan Vendor: *${matchedVendor ? matchedVendor.nama : fixOrderModalLead.vendor || 'Penerjemah'}*\n` +
+            `Kami ingin menugaskan dokumen berikut untuk diterjemahkan:\n\n` +
+            `• *ID Order*: AMP-WO-${fixOrderModalLead.id.toUpperCase().split('-')[1] || fixOrderModalLead.id.substring(5, 9).toUpperCase()}\n` +
+            `• *Jenis Dokumen*: ${fixOrderModalLead.documentTypeDetected || 'Dokumen Tersumpah'}\n` +
+            `• *Kombinasi Bahasa*: ${fixOrderModalLead.sourceLanguage} ➔ ${fixOrderModalLead.targetLanguage}\n` +
+            `• *Estimasi Volume*: ${totalVol}\n` +
+            `• *Batas Waktu (Deadline)*: ${deadlineText}\n` +
+            `• *Sifat Pengerjaan*: ${fixOrderModalLead.speedTier === 'express' ? 'EXPRESS / CEPAT' : 'REGULER / STANDAR'}\n` +
+            `• *Catatan Tambahan*: ${workOrderCustomNote || fixOrderModalLead.dealNotes || 'Mohon diselesaikan sesuai standar kualitas AMPM Sworn Translator.'}\n\n` +
+            `*Informasi Tarif Penugasan*:\n` +
+            `• *Tarif*: ${estimatedRate ? `Rp ${estimatedRate.toLocaleString('id-ID')}` : 'Tarif Ternegosiasi / Menunggu Konfirmasi'}\n\n` +
+            `Mohon konfirmasi kesediaan rekan dengan membalas pesan ini. Terima kasih! 🙏`;
+
+          return (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden font-sans text-left border border-slate-100 flex flex-col my-8"
+              >
+                {/* Header */}
+                <div className="bg-rose-950 text-white p-5 flex items-center justify-between shrink-0">
+                  <div className="flex items-center space-x-2">
+                    <FileCheck className="w-5 h-5 text-rose-300" />
+                    <div>
+                      <h4 className="text-sm font-bold font-display">Surat Perintah Kerja (Fix Order Penerjemah)</h4>
+                      <p className="text-[10px] text-rose-200 font-medium">Data invoice tanpa harga customer end-user AMPM</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFixOrderModalLead(null)}
+                    className="text-white hover:text-rose-100 p-1 bg-white/10 hover:bg-white/20 rounded-lg cursor-pointer transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Content body */}
+                <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+                  {/* Select Vendor and Rate Preview */}
+                  <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-100 space-y-3.5">
+                    <p className="text-xs font-bold text-rose-900 uppercase tracking-wider mb-1">⚙️ Hubungkan & Lacak Tarif Vendor</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pilih Penerjemah (Vendor)</label>
+                        <select
+                          value={selectedWorkOrderVendorId}
+                          onChange={(e) => setSelectedWorkOrderVendorId(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 focus:border-rose-500 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all text-slate-850"
+                        >
+                          <option value="">— Pilih Vendor Terdaftar —</option>
+                          {vendors.map(v => (
+                            <option key={v.id} value={v.id}>{v.nama}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tarif Terdeteksi Otomatis</label>
+                        <div className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-800 flex items-center justify-between">
+                          <span>{estimatedRate ? `Rp ${estimatedRate.toLocaleString('id-ID')}` : 'Tidak Terdeteksi'}</span>
+                          {estimatedRate && <span className="text-[9px] bg-emerald-100 text-emerald-800 font-sans px-1.5 py-0.5 rounded uppercase">Cocok</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Catatan Tambahan untuk Vendor</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Contoh: Mohon gunakan glosarium hukum AMPM. Sumpah DKI Jakarta wajib stampel basah..."
+                        value={workOrderCustomNote}
+                        onChange={(e) => setWorkOrderCustomNote(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 focus:border-rose-500 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all text-slate-855"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Document details box */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
+                    <div className="bg-slate-50 px-4 py-2.5 font-bold text-slate-700 border-b border-slate-200 flex items-center justify-between">
+                      <span>AMP-WO-{fixOrderModalLead.id.toUpperCase().split('-')[1] || fixOrderModalLead.id.substring(5, 9).toUpperCase()}</span>
+                      <span className="text-[10px] font-mono text-slate-505">Dibuat: {new Date().toLocaleDateString('id-ID')}</span>
+                    </div>
+
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-4 text-left">
+                        <div>
+                          <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide">Target Vendor:</span>
+                          <span className="block font-bold text-slate-800 text-sm mt-0.5">{matchedVendor ? matchedVendor.nama : fixOrderModalLead.vendor || 'Belum ditunjuk'}</span>
+                          {matchedVendor && <span className="block text-[10px] font-mono text-slate-500">{matchedVendor.noWa}</span>}
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wide">BATAS WAKTU (DEADLINE):</span>
+                          <span className="block font-bold text-rose-705 text-xs mt-0.5">{deadlineText}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-dashed border-slate-200 pt-3 space-y-2">
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-semibold">Kombinasi Bahasa:</span>
+                          <span className="font-bold text-slate-900">{fixOrderModalLead.sourceLanguage} ➔ {fixOrderModalLead.targetLanguage}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-semibold">Jenis Layanan / Tipe:</span>
+                          <span className="font-bold text-slate-900 uppercase text-[10.5px]">{fixOrderModalLead.translationType === 'sworn' ? 'Tersumpah (Sworn)' : 'Non-Tersumpah (Regular)'}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-semibold">Sifat Urgensi:</span>
+                          <span className="font-bold text-slate-900 uppercase text-[10.5px]">{fixOrderModalLead.speedTier === 'express' ? 'Express / Cepat' : 'Regular'}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-semibold">Total Volume Dokumen:</span>
+                          <span className="font-mono font-bold text-slate-900">{totalVol}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-semibold">Catatan Administrasi:</span>
+                          <span className="font-medium text-slate-700 break-words max-w-[300px] text-right">{fixOrderModalLead.dealNotes || 'Tidak ada catatan admin'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preview text of the job description */}
+                  <div className="space-y-1 text-left">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pratinjau Teks Penugasan (Work Order Text)</label>
+                    <div className="w-full p-3 bg-slate-55 border border-slate-200 rounded-xl text-xs font-mono text-slate-705 whitespace-pre-wrap select-all max-h-48 overflow-y-auto">
+                      {waWorkOrderMsg}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer action triggers */}
+                <div className="bg-slate-55 p-4 border-t border-slate-100 flex items-center justify-between shrink-0">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] bg-rose-100 text-rose-800 px-2.5 py-1 rounded-md uppercase font-bold tracking-wide">Penerjemah End-User</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFixOrderModalLead(null)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl cursor-pointer transition-all animate-none"
+                    >
+                      Tutup
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(waWorkOrderMsg);
+                        alert('Teks Fix Order berhasil disalin ke clipboard!');
+                      }}
+                      className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer transition-all flex items-center gap-1 border border-slate-250 animate-none"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Salin Teks</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetWA = matchedVendor ? matchedVendor.noWa : (fixOrderModalLead.customerWhatsapp || '');
+                        const cleanWA = targetWA.replace(/[^0-9]/g, '');
+                        window.open(`https://wa.me/${cleanWA}/?text=${encodeURIComponent(waWorkOrderMsg)}`, '_blank', 'noreferrer');
+                      }}
+                      className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shadow-md animate-none"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span>WhatsApp ke Vendor</span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 }

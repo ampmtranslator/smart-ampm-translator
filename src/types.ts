@@ -43,6 +43,9 @@ export interface TranslationLead {
   dealFinalPrice?: number;
   orderNotes?: string;
   invoiceItems?: { id: string; nama: string; harga: number; qty: number }[];
+  vendor?: string;
+  process?: string;
+  agentId?: string;
 }
 
 export interface PricingRule {
@@ -101,4 +104,28 @@ export interface UploadedDoc {
   simulatedPages?: number;
   explanation?: string;
   textSnippet?: string;
+}
+
+export interface VendorPricelistItem {
+  id: string;
+  namaProduk: string;
+  hargaVendor: number;
+}
+
+export interface Vendor {
+  id: string;
+  nama: string;
+  alamat: string;
+  noWa: string;
+  pricelist: VendorPricelistItem[];
+}
+
+export interface Agent {
+  id: string;
+  nama: string;
+  tipe: 'personal' | 'perusahaan';
+  noWa: string;
+  email?: string;
+  diskonPersen: number;
+  createdAt?: string;
 }

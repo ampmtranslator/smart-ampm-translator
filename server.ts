@@ -9,11 +9,201 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import { createAdminClient } from '@insforge/sdk';
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// Initialize InsForge Admin SDK client
+const insforge = createAdminClient({
+  baseUrl: process.env.INSFORGE_URL || "https://4tukju5j.ap-southeast.insforge.app",
+  apiKey: process.env.INSFORGE_API_KEY || "ik_d729001667346d2992abbf044484f74c",
+});
+
+// Mapper helpers for Leads
+function mapLeadToDB(lead: any): any {
+  if (!lead) return null;
+  return {
+    id: lead.id,
+    customer_name: lead.customerName,
+    customer_whatsapp: lead.customerWhatsapp,
+    customer_email: lead.customerEmail,
+    source_language: lead.sourceLanguage,
+    target_language: lead.targetLanguage,
+    translation_type: lead.translationType,
+    file_name: lead.fileName,
+    file_size: lead.fileSize,
+    text_extracted_snippet: lead.textExtractedSnippet,
+    document_category: lead.documentCategory,
+    document_type_detected: lead.documentTypeDetected,
+    word_count: lead.wordCount || 0,
+    char_count: lead.charCount || 0,
+    calculated_standard_pages: lead.calculatedStandardPages || 0,
+    speed_tier: lead.speedTier,
+    cost_per_page: lead.costPerPage || 0,
+    total_translation_cost: lead.totalTranslationCost || 0,
+    addons: lead.addons || {},
+    addon_cost: lead.addonCost || 0,
+    grand_total_cost: lead.grandTotalCost || 0,
+    status: lead.status || 'Pending',
+    created_at: lead.createdAt || new Date().toISOString(),
+    is_dealed: lead.isDealed || false,
+    is_paid: lead.isPaid || false,
+    deal_deadline: lead.dealDeadline,
+    deal_status: lead.dealStatus,
+    deal_final_price: lead.dealFinalPrice || 0,
+    order_notes: lead.orderNotes,
+    invoice_items: lead.invoiceItems || [],
+    vendor: lead.vendor,
+    process: lead.process,
+    agent_id: lead.agentId
+  };
+}
+
+function mapLeadFromDB(dbLead: any): any {
+  if (!dbLead) return null;
+  return {
+    id: dbLead.id,
+    customerName: dbLead.customer_name,
+    customerWhatsapp: dbLead.customer_whatsapp,
+    customerEmail: dbLead.customer_email,
+    sourceLanguage: dbLead.source_language,
+    targetLanguage: dbLead.target_language,
+    translationType: dbLead.translation_type,
+    fileName: dbLead.file_name,
+    fileSize: dbLead.file_size,
+    textExtractedSnippet: dbLead.text_extracted_snippet,
+    documentCategory: dbLead.document_category,
+    documentTypeDetected: dbLead.document_type_detected,
+    wordCount: dbLead.word_count,
+    charCount: dbLead.char_count,
+    calculatedStandardPages: dbLead.calculated_standard_pages ? parseFloat(dbLead.calculated_standard_pages) : 0,
+    speedTier: dbLead.speed_tier,
+    costPerPage: dbLead.cost_per_page ? parseFloat(dbLead.cost_per_page) : 0,
+    totalTranslationCost: dbLead.total_translation_cost ? parseFloat(dbLead.total_translation_cost) : 0,
+    addons: dbLead.addons,
+    addonCost: dbLead.addon_cost ? parseFloat(dbLead.addon_cost) : 0,
+    grandTotalCost: dbLead.grand_total_cost ? parseFloat(dbLead.grand_total_cost) : 0,
+    status: dbLead.status,
+    createdAt: dbLead.created_at,
+    isDealed: dbLead.is_dealed,
+    isPaid: dbLead.is_paid,
+    dealDeadline: dbLead.deal_deadline,
+    dealStatus: dbLead.deal_status,
+    dealFinalPrice: dbLead.deal_final_price ? parseFloat(dbLead.deal_final_price) : 0,
+    orderNotes: dbLead.order_notes,
+    invoiceItems: dbLead.invoice_items,
+    vendor: dbLead.vendor,
+    process: dbLead.process,
+    agentId: dbLead.agent_id
+  };
+}
+
+// Mapper helpers for Canvasing
+function mapCanvasingToDB(contact: any): any {
+  if (!contact) return null;
+  return {
+    id: contact.id,
+    nomor_surat: contact.nomorSurat,
+    nama_perusahaan: contact.namaPerusahaan,
+    nama_pic: contact.namaPic,
+    no_telp: contact.noTelp,
+    no_email: contact.noEmail,
+    kategori_perusahaan: contact.kategoriPerusahaan,
+    surat_penawaran: contact.suratPenawaran,
+    respon: contact.respon
+  };
+}
+
+function mapCanvasingFromDB(dbContact: any): any {
+  if (!dbContact) return null;
+  return {
+    id: dbContact.id,
+    nomorSurat: dbContact.nomor_surat,
+    namaPerusahaan: dbContact.nama_perusahaan,
+    namaPic: dbContact.nama_pic,
+    noTelp: dbContact.no_telp,
+    noEmail: dbContact.no_email,
+    kategoriPerusahaan: dbContact.kategori_perusahaan,
+    suratPenawaran: dbContact.surat_penawaran,
+    respon: dbContact.respon
+  };
+}
+
+// Mapper helpers for Vendors
+function mapVendorToDB(vendor: any): any {
+  if (!vendor) return null;
+  return {
+    id: vendor.id,
+    nama: vendor.nama,
+    alamat: vendor.alamat,
+    no_wa: vendor.noWa,
+    pricelist: vendor.pricelist || []
+  };
+}
+
+function mapVendorFromDB(dbVendor: any): any {
+  if (!dbVendor) return null;
+  return {
+    id: dbVendor.id,
+    nama: dbVendor.nama,
+    alamat: dbVendor.alamat,
+    noWa: dbVendor.no_wa,
+    pricelist: dbVendor.pricelist || []
+  };
+}
+
+// Mapper helpers for Agents
+function mapAgentToDB(agent: any): any {
+  if (!agent) return null;
+  return {
+    id: agent.id,
+    nama: agent.nama,
+    tipe: agent.tipe || 'personal',
+    no_wa: agent.noWa,
+    email: agent.email,
+    diskon_persen: agent.diskonPersen || 0,
+    created_at: agent.createdAt || new Date().toISOString()
+  };
+}
+
+function mapAgentFromDB(dbAgent: any): any {
+  if (!dbAgent) return null;
+  return {
+    id: dbAgent.id,
+    nama: dbAgent.nama,
+    tipe: dbAgent.tipe,
+    noWa: dbAgent.no_wa,
+    email: dbAgent.email,
+    diskonPersen: dbAgent.diskon_persen ? parseFloat(dbAgent.diskon_persen) : 0,
+    createdAt: dbAgent.created_at
+  };
+}
+
+// Mapper helpers for Config
+function mapConfigToDB(configToSave: any): any {
+  if (!configToSave) return null;
+  return {
+    google_spreadsheet_id: configToSave.googleSpreadsheetId || '',
+    google_direct_sync_enabled: !!configToSave.googleDirectSyncEnabled,
+    kategori_perusahaan: configToSave.kategoriPerusahaan || [],
+    kategori_produk: configToSave.kategoriProduk || [],
+    produk: configToSave.produk || []
+  };
+}
+
+function mapConfigFromDB(dbConfig: any): any {
+  if (!dbConfig) return null;
+  return {
+    googleSpreadsheetId: dbConfig.google_spreadsheet_id,
+    googleDirectSyncEnabled: dbConfig.google_direct_sync_enabled,
+    kategoriPerusahaan: dbConfig.kategori_perusahaan,
+    kategoriProduk: dbConfig.kategori_produk,
+    produk: dbConfig.produk
+  };
+}
 
 // Set high limits for JSON so clients can upload base64 images/PDFs directly
 app.use(express.json({ limit: '50mb' }));
@@ -24,6 +214,7 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const LEADS_FILE = path.join(DATA_DIR, 'leads.json');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const CANVASSING_FILE = path.join(DATA_DIR, 'canvasing.json');
+const VENDORS_FILE = path.join(DATA_DIR, 'vendors.json');
 
 // Ensure directories and files exist
 if (!fs.existsSync(DATA_DIR)) {
@@ -112,6 +303,43 @@ if (!fs.existsSync(CANVASSING_FILE)) {
     }
   ];
   fs.writeFileSync(CANVASSING_FILE, JSON.stringify(initialCanvasing, null, 2));
+}
+
+if (!fs.existsSync(VENDORS_FILE)) {
+  const initialVendors = [
+    {
+      id: "VND-001",
+      nama: "Anisa Rahmawati, M.Hum. (Sworn)",
+      alamat: "Jl. Margonda Raya No. 12, Depok, Jawa Barat",
+      noWa: "+6281299887766",
+      pricelist: [
+        { id: "vprod-1", namaProduk: "Sworn English-Indonesian (Legal)", hargaVendor: 45000 },
+        { id: "vprod-2", namaProduk: "Sworn Indonesian-English (Legal)", hargaVendor: 50000 },
+        { id: "vprod-3", namaProduk: "Proofreading & Editing (English)", hargaVendor: 20000 }
+      ]
+    },
+    {
+      id: "VND-002",
+      nama: "Syihabuddin, S.S. (Sworn Mandarin)",
+      alamat: "Ruko Inkopal Blok B-18, Kelapa Gading, Jakarta Utara",
+      noWa: "+6281311223344",
+      pricelist: [
+        { id: "vprod-4", namaProduk: "Sworn Mandarin-Indonesian", hargaVendor: 120000 },
+        { id: "vprod-5", namaProduk: "Sworn Indonesian-Mandarin", hargaVendor: 135000 }
+      ]
+    },
+    {
+      id: "VND-003",
+      nama: "Rudi Hartono (Penerjemah Dokumen Teknik)",
+      alamat: "Griya Shanta Blok L-405, Lowokwaru, Malang",
+      noWa: "+6285644332211",
+      pricelist: [
+        { id: "vprod-6", namaProduk: "Translate Dokumen Manual Teknik (Inggris-Indo)", hargaVendor: 18000 },
+        { id: "vprod-7", namaProduk: "Translate Kontrak & Kerja Sama (Inggris-Indo)", hargaVendor: 22000 }
+      ]
+    }
+  ];
+  fs.writeFileSync(VENDORS_FILE, JSON.stringify(initialVendors, null, 2));
 }
 
 // Lazy loaded Gemini API client
@@ -233,16 +461,6 @@ app.post('/api/leads', async (req, res) => {
       return res.status(400).json({ error: 'Nama pelanggan dan Nomor Whatsapp wajib diisi' });
     }
 
-    // Read existing leads
-    let leads = [];
-    if (fs.existsSync(LEADS_FILE)) {
-      try {
-        leads = JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8'));
-      } catch (e) {
-        leads = [];
-      }
-    }
-
     const newLead = {
       id: `LEAD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       status: 'Pending',
@@ -250,12 +468,20 @@ app.post('/api/leads', async (req, res) => {
       ...leadData
     };
 
-    leads.unshift(newLead); // Add new lead to the beginning of the list
-    fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+    const dbLead = mapLeadToDB(newLead);
+    const { data, error } = await insforge.database
+      .from('leads')
+      .insert([dbLead])
+      .select();
+
+    if (error) {
+      console.error('Error creating lead:', error);
+      return res.status(500).json({ error: error.message || 'Gagal menyimpan data lead ke database' });
+    }
 
     res.json({
       success: true,
-      lead: newLead
+      lead: mapLeadFromDB(data?.[0]) || newLead
     });
 
   } catch (error: any) {
@@ -265,7 +491,7 @@ app.post('/api/leads', async (req, res) => {
 });
 
 // 2.5 API: Generate 20 Dummy Leads
-app.post('/api/leads/generate-dummy', (req, res) => {
+app.post('/api/leads/generate-dummy', async (req, res) => {
   try {
     const dummyLeads = [
       {
@@ -780,21 +1006,22 @@ app.post('/api/leads/generate-dummy', (req, res) => {
       }
     ];
 
-    // Read current leads
-    let currentLeads = [];
-    if (fs.existsSync(LEADS_FILE)) {
-      try {
-        currentLeads = JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8'));
-      } catch (e) {
-        currentLeads = [];
-      }
+    // Delete existing dummy leads first to avoid duplicates
+    await insforge.database
+      .from('leads')
+      .delete()
+      .like('id', 'LEAD-MOCK-%');
+
+    // Insert new ones
+    const dbLeads = dummyLeads.map(mapLeadToDB);
+    const { error: insertError } = await insforge.database
+      .from('leads')
+      .insert(dbLeads);
+
+    if (insertError) {
+      console.error('Error inserting dummy leads:', insertError);
+      return res.status(500).json({ error: insertError.message || 'Gagal menyimpan data dummy ke database' });
     }
-
-    // Filter out previously generated mock leads to prevent direct duplicates
-    currentLeads = currentLeads.filter((l: any) => !l.id.startsWith("LEAD-MOCK-"));
-
-    const finalLeads = [...dummyLeads, ...currentLeads];
-    fs.writeFileSync(LEADS_FILE, JSON.stringify(finalLeads, null, 2));
 
     res.json({ success: true, count: dummyLeads.length, leads: dummyLeads });
   } catch (error: any) {
@@ -803,121 +1030,147 @@ app.post('/api/leads/generate-dummy', (req, res) => {
 });
 
 // 3. API: List Leads (Admin dashboard)
-app.get('/api/leads', (req, res) => {
+app.get('/api/leads', async (req, res) => {
   try {
-    let leads = [];
-    if (fs.existsSync(LEADS_FILE)) {
-      leads = JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8'));
+    const { data, error } = await insforge.database
+      .from('leads')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching leads:', error);
+      return res.status(500).json({ error: error.message || 'Gagal mengambil data leads dari database' });
     }
-    res.json(leads);
+
+    const mappedLeads = (data || []).map(mapLeadFromDB);
+    res.json(mappedLeads);
   } catch (error: any) {
+    console.error('Error listing leads:', error);
     res.status(500).json({ error: 'Gagal mengambil data leads' });
   }
 });
 
 // 4. API: Update Lead Status / Order Fields
-app.patch('/api/leads/:id', (req, res) => {
+app.patch('/api/leads/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!fs.existsSync(LEADS_FILE)) {
-      return res.status(404).json({ error: 'Data leads tidak ditemukan' });
+    const dbLeadUpdate = mapLeadToDB({ id, ...req.body });
+    
+    // We shouldn't overwrite the id, and only include non-undefined fields
+    const filteredUpdate: any = {};
+    for (const [key, val] of Object.entries(dbLeadUpdate)) {
+      if (val !== undefined && key !== 'id') {
+        filteredUpdate[key] = val;
+      }
     }
 
-    const leads = JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8'));
-    const index = leads.findIndex((l: any) => l.id === id);
+    const { data, error } = await insforge.database
+      .from('leads')
+      .update(filteredUpdate)
+      .eq('id', id)
+      .select();
 
-    if (index === -1) {
+    if (error) {
+      console.error('Error updating lead:', error);
+      return res.status(500).json({ error: error.message || 'Gagal memperbarui data lead/order di database' });
+    }
+
+    if (!data || data.length === 0) {
       return res.status(404).json({ error: 'Lead tidak ditemukan' });
     }
 
-    // Merge everything in req.body to index
-    leads[index] = { ...leads[index], ...req.body };
-    fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
-
-    res.json({ success: true, lead: leads[index] });
+    res.json({ success: true, lead: mapLeadFromDB(data[0]) });
   } catch (error: any) {
+    console.error('Error updating lead:', error);
     res.status(500).json({ error: 'Gagal memperbarui data lead/order' });
   }
 });
 
 // 5. API: Remove Lead
-app.delete('/api/leads/:id', (req, res) => {
+app.delete('/api/leads/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    if (!fs.existsSync(LEADS_FILE)) {
-      return res.status(404).json({ error: 'Data leads tidak ditemukan' });
-    }
+    const { data, error } = await insforge.database
+      .from('leads')
+      .delete()
+      .eq('id', id)
+      .select();
 
-    let leads = JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8'));
-    leads = leads.filter((l: any) => l.id !== id);
-    fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+    if (error) {
+      console.error('Error deleting lead:', error);
+      return res.status(500).json({ error: error.message || 'Gagal menghapus lead di database' });
+    }
 
     res.json({ success: true, id });
   } catch (error: any) {
+    console.error('Error deleting lead:', error);
     res.status(500).json({ error: 'Gagal menghapus lead' });
   }
 });
 
 // 6. API: Get Google Sheets & App Configuration (including products & corporate config)
-app.get('/api/sheet-config', (req, res) => {
+// 6. API: Get Google Sheets & App Configuration (including products & corporate config)
+app.get('/api/sheet-config', async (req, res) => {
   try {
-    let config: any = { googleSpreadsheetId: '', googleDirectSyncEnabled: false };
-    if (fs.existsSync(CONFIG_FILE)) {
-      config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    const { data, error } = await insforge.database
+      .from('config')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching config:', error);
+      return res.status(500).json({ error: error.message || 'Gagal memuat konfigurasi aplikasi' });
     }
-    
-    let updated = false;
-    if (!config.kategoriPerusahaan) {
-      config.kategoriPerusahaan = [
-        "Teknologi & IT",
-        "Hukum & Advokasi",
-        "Migas & Pertambangan",
-        "Keuangan & Perbankan",
-        "Manufaktur & Pabrik",
-        "Farmasi & Medis",
-        "Pariwisata & Hotel",
-        "Lain-lain"
-      ];
-      updated = true;
+
+    if (!data) {
+      // Create default config if none exists
+      const defaultConfig = {
+        googleSpreadsheetId: '',
+        googleDirectSyncEnabled: false,
+        kategoriPerusahaan: [
+          "Teknologi & IT", "Hukum & Advokasi", "Migas & Pertambangan", "Keuangan & Perbankan",
+          "Manufaktur & Pabrik", "Farmasi & Medis", "Pariwisata & Hotel", "Lain-lain"
+        ],
+        kategoriProduk: [
+          { id: "cat-1", nama: "Sworn Translation" },
+          { id: "cat-2", nama: "Non-Sworn Translation" },
+          { id: "cat-3", nama: "Legalisasi & Apostille" }
+        ],
+        produk: [
+          { id: "prod-1", nama: "Sworn Inggris-Indonesia (Reguler)", harga: 75000, kategoriId: "cat-1" },
+          { id: "prod-2", nama: "Sworn Inggris-Indonesia (Non-Reguler)", harga: 90000, kategoriId: "cat-1" },
+          { id: "prod-3", nama: "Non-Sworn Inggris (Non-Teknik)", harga: 30000, kategoriId: "cat-2" },
+          { id: "prod-4", nama: "Non-Sworn Inggris (Dokumen Teknik)", harga: 35000, kategoriId: "cat-2" },
+          { id: "prod-5", nama: "Apostille Kemenkumham & Kemenlu", harga: 700000, kategoriId: "cat-3" }
+        ]
+      };
+      const dbConfig = mapConfigToDB(defaultConfig);
+      const { data: insertedData, error: insertError } = await insforge.database
+        .from('config')
+        .insert([dbConfig])
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error inserting default config:', insertError);
+        return res.status(500).json({ error: insertError.message || 'Gagal menginisialisasi konfigurasi default' });
+      }
+
+      return res.json(mapConfigFromDB(insertedData));
     }
-    if (!config.kategoriProduk) {
-      config.kategoriProduk = [
-        { id: "cat-1", nama: "Sworn Translation" },
-        { id: "cat-2", nama: "Non-Sworn Translation" },
-        { id: "cat-3", nama: "Legalisasi & Apostille" }
-      ];
-      updated = true;
-    }
-    if (!config.produk) {
-      config.produk = [
-        { id: "prod-1", nama: "Sworn Inggris-Indonesia (Reguler)", harga: 75000, kategoriId: "cat-1" },
-        { id: "prod-2", nama: "Sworn Inggris-Indonesia (Non-Reguler)", harga: 90000, kategoriId: "cat-1" },
-        { id: "prod-3", nama: "Non-Sworn Inggris (Non-Teknik)", harga: 30000, kategoriId: "cat-2" },
-        { id: "prod-4", nama: "Non-Sworn Inggris (Dokumen Teknik)", harga: 35000, kategoriId: "cat-2" },
-        { id: "prod-5", nama: "Apostille Kemenkumham & Kemenlu", harga: 700000, kategoriId: "cat-3" }
-      ];
-      updated = true;
-    }
-    
-    if (updated) {
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    }
-    
-    res.json(config);
+
+    res.json(mapConfigFromDB(data));
   } catch (error: any) {
+    console.error('Error in GET /api/sheet-config:', error);
     res.status(500).json({ error: 'Gagal memuat konfigurasi aplikasi' });
   }
 });
 
 // 7. API: Save Google Sheets & App Configuration
-app.post('/api/sheet-config', (req, res) => {
+app.post('/api/sheet-config', async (req, res) => {
   try {
-    let existingConfig: any = {};
-    if (fs.existsSync(CONFIG_FILE)) {
-      existingConfig = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-    }
-
     const { 
       googleSpreadsheetId, 
       googleDirectSyncEnabled, 
@@ -926,36 +1179,58 @@ app.post('/api/sheet-config', (req, res) => {
       kategoriProduk 
     } = req.body;
 
-    const config = { 
-      googleSpreadsheetId: googleSpreadsheetId !== undefined ? googleSpreadsheetId : (existingConfig.googleSpreadsheetId || ''), 
-      googleDirectSyncEnabled: googleDirectSyncEnabled !== undefined ? !!googleDirectSyncEnabled : !!(existingConfig.googleDirectSyncEnabled || false),
-      kategoriPerusahaan: kategoriPerusahaan || existingConfig.kategoriPerusahaan || [
-        "Teknologi & IT",
-        "Hukum & Advokasi",
-        "Migas & Pertambangan",
-        "Keuangan & Perbankan",
-        "Manufaktur & Pabrik",
-        "Farmasi & Medis",
-        "Pariwisata & Hotel",
-        "Lain-lain"
-      ],
-      kategoriProduk: kategoriProduk || existingConfig.kategoriProduk || [
-        { id: "cat-1", nama: "Sworn Translation" },
-        { id: "cat-2", nama: "Non-Sworn Translation" },
-        { id: "cat-3", nama: "Legalisasi & Apostille" }
-      ],
-      produk: produk || existingConfig.produk || [
-        { id: "prod-1", nama: "Sworn Inggris-Indonesia (Reguler)", harga: 75000, kategoriId: "cat-1" },
-        { id: "prod-2", nama: "Sworn Inggris-Indonesia (Non-Reguler)", harga: 90000, kategoriId: "cat-1" },
-        { id: "prod-3", nama: "Non-Sworn Inggris (Non-Teknik)", harga: 30000, kategoriId: "cat-2" },
-        { id: "prod-4", nama: "Non-Sworn Inggris (Dokumen Teknik)", harga: 35000, kategoriId: "cat-2" },
-        { id: "prod-5", nama: "Apostille Kemenkumham & Kemenlu", harga: 700000, kategoriId: "cat-3" }
-      ]
+    const { data: existing, error: getError } = await insforge.database
+      .from('config')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (getError) {
+      console.error('Error fetching config for update:', getError);
+      return res.status(500).json({ error: getError.message || 'Gagal membaca konfigurasi' });
+    }
+
+    const configToSave = {
+      googleSpreadsheetId: googleSpreadsheetId !== undefined ? googleSpreadsheetId : (existing?.google_spreadsheet_id || ''),
+      googleDirectSyncEnabled: googleDirectSyncEnabled !== undefined ? !!googleDirectSyncEnabled : !!(existing?.google_direct_sync_enabled || false),
+      kategoriPerusahaan: kategoriPerusahaan || existing?.kategori_perusahaan || [],
+      kategoriProduk: kategoriProduk || existing?.kategori_produk || [],
+      produk: produk || existing?.produk || []
     };
 
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-    res.json({ success: true, config });
+    const dbConfig = mapConfigToDB(configToSave);
+    let resultData;
+
+    if (existing) {
+      const { data, error } = await insforge.database
+        .from('config')
+        .update(dbConfig)
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating config:', error);
+        return res.status(500).json({ error: error.message || 'Gagal menyimpan konfigurasi' });
+      }
+      resultData = data;
+    } else {
+      const { data, error } = await insforge.database
+        .from('config')
+        .insert([dbConfig])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error inserting config:', error);
+        return res.status(500).json({ error: error.message || 'Gagal menyimpan konfigurasi' });
+      }
+      resultData = data;
+    }
+
+    res.json({ success: true, config: mapConfigFromDB(resultData) });
   } catch (error: any) {
+    console.error('Error saving config:', error);
     res.status(500).json({ error: 'Gagal mengatur konfigurasi' });
   }
 });
@@ -968,35 +1243,45 @@ const mapStatus = (status: string) => {
 };
 
 // 8. API: List Canvasing contacts
-app.get('/api/canvasing', (req, res) => {
+app.get('/api/canvasing', async (req, res) => {
   try {
-    let contacts = [];
-    if (fs.existsSync(CANVASSING_FILE)) {
-      contacts = JSON.parse(fs.readFileSync(CANVASSING_FILE, 'utf8'));
+    const { data, error } = await insforge.database
+      .from('canvasing')
+      .select('*')
+      .order('id', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching canvasing:', error);
+      return res.status(500).json({ error: error.message || 'Gagal memuat data kontak Canvasing dari database' });
     }
-    // Map existing old statuses if any
-    contacts = contacts.map((c: any) => ({
+
+    const contacts = (data || []).map(mapCanvasingFromDB).map((c: any) => ({
       ...c,
       respon: mapStatus(c.respon)
     }));
     res.json(contacts);
   } catch (error: any) {
+    console.error('Error in GET /api/canvasing:', error);
     res.status(500).json({ error: 'Gagal memuat data kontak Canvasing' });
   }
 });
 
 // 9. API: Create Canvasing contact
-app.post('/api/canvasing', (req, res) => {
+app.post('/api/canvasing', async (req, res) => {
   try {
     const { nomorSurat, namaPerusahaan, namaPic, noTelp, noEmail, kategoriPerusahaan, suratPenawaran, respon } = req.body;
     
-    let contacts = [];
-    if (fs.existsSync(CANVASSING_FILE)) {
-      contacts = JSON.parse(fs.readFileSync(CANVASSING_FILE, 'utf8'));
+    // Get existing to find next Num
+    const { data: contacts, error: getError } = await insforge.database
+      .from('canvasing')
+      .select('id');
+
+    if (getError) {
+      console.error('Error getting canvasing count:', getError);
+      return res.status(500).json({ error: getError.message || 'Gagal membaca data canvasing dari database' });
     }
 
-    // Generate CAN-XXX ID
-    const nextNum = contacts.length > 0 ? Math.max(...contacts.map((c: any) => {
+    const nextNum = (contacts || []).length > 0 ? Math.max(...(contacts || []).map((c: any) => {
       const match = c.id.match(/CAN-(\d+)/);
       return match ? parseInt(match[1]) : 0;
     })) + 1 : 1;
@@ -1014,59 +1299,325 @@ app.post('/api/canvasing', (req, res) => {
       respon: mapStatus(respon)
     };
 
-    contacts.unshift(newContact);
-    fs.writeFileSync(CANVASSING_FILE, JSON.stringify(contacts, null, 2));
+    const dbContact = mapCanvasingToDB(newContact);
+    const { data, error } = await insforge.database
+      .from('canvasing')
+      .insert([dbContact])
+      .select()
+      .single();
 
-    res.json({ success: true, contact: newContact });
+    if (error) {
+      console.error('Error creating canvasing contact:', error);
+      return res.status(500).json({ error: error.message || 'Gagal menambahkan kontak Canvasing ke database' });
+    }
+
+    res.json({ success: true, contact: mapCanvasingFromDB(data) });
   } catch (error: any) {
+    console.error('Error in POST /api/canvasing:', error);
     res.status(500).json({ error: 'Gagal menambahkan kontak Canvasing' });
   }
 });
 
 // 10. API: Patch / Update Canvasing contact
-app.patch('/api/canvasing/:id', (req, res) => {
+app.patch('/api/canvasing/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    if (!fs.existsSync(CANVASSING_FILE)) {
-      return res.status(404).json({ error: 'File data canvasing tidak ditemukan' });
-    }
-
-    const contacts = JSON.parse(fs.readFileSync(CANVASSING_FILE, 'utf8'));
-    const index = contacts.findIndex((c: any) => c.id === id);
-
-    if (index === -1) {
-      return res.status(404).json({ error: 'Kontak Canvasing tidak ditemukan' });
-    }
-
     const updatedData = { ...req.body };
     if (updatedData.respon) {
       updatedData.respon = mapStatus(updatedData.respon);
     }
 
-    contacts[index] = { ...contacts[index], ...updatedData };
-    fs.writeFileSync(CANVASSING_FILE, JSON.stringify(contacts, null, 2));
+    const dbContactUpdate = mapCanvasingToDB({ id, ...updatedData });
+    const filteredUpdate: any = {};
+    for (const [key, val] of Object.entries(dbContactUpdate)) {
+      if (val !== undefined && key !== 'id') {
+        filteredUpdate[key] = val;
+      }
+    }
 
-    res.json({ success: true, contact: contacts[index] });
+    const { data, error } = await insforge.database
+      .from('canvasing')
+      .update(filteredUpdate)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating canvasing contact:', error);
+      return res.status(500).json({ error: error.message || 'Gagal memperbarui kontak Canvasing di database' });
+    }
+
+    res.json({ success: true, contact: mapCanvasingFromDB(data) });
   } catch (error: any) {
+    console.error('Error in PATCH /api/canvasing/:id:', error);
     res.status(500).json({ error: 'Gagal membarui status respon kontak Canvasing' });
   }
 });
 
 // 11. API: Remove Canvasing contact
-app.delete('/api/canvasing/:id', (req, res) => {
+app.delete('/api/canvasing/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    if (!fs.existsSync(CANVASSING_FILE)) {
-      return res.status(404).json({ error: 'File data canvasing tidak ditemukan' });
-    }
+    const { data, error } = await insforge.database
+      .from('canvasing')
+      .delete()
+      .eq('id', id)
+      .select();
 
-    let contacts = JSON.parse(fs.readFileSync(CANVASSING_FILE, 'utf8'));
-    contacts = contacts.filter((c: any) => c.id !== id);
-    fs.writeFileSync(CANVASSING_FILE, JSON.stringify(contacts, null, 2));
+    if (error) {
+      console.error('Error deleting canvasing contact:', error);
+      return res.status(500).json({ error: error.message || 'Gagal menghapus kontak Canvasing dari database' });
+    }
 
     res.json({ success: true, id });
   } catch (error: any) {
+    console.error('Error in DELETE /api/canvasing/:id:', error);
     res.status(500).json({ error: 'Gagal menghapus kontak Canvasing' });
+  }
+});
+
+// 12. API: List Vendors
+app.get('/api/vendors', async (req, res) => {
+  try {
+    const { data, error } = await insforge.database
+      .from('vendors')
+      .select('*')
+      .order('id', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching vendors:', error);
+      return res.status(500).json({ error: error.message || 'Gagal memuat data vendor dari database' });
+    }
+
+    const mappedVendors = (data || []).map(mapVendorFromDB);
+    res.json(mappedVendors);
+  } catch (error: any) {
+    console.error('Error in GET /api/vendors:', error);
+    res.status(500).json({ error: 'Gagal memuat data vendor' });
+  }
+});
+
+// 13. API: Create Vendor
+app.post('/api/vendors', async (req, res) => {
+  try {
+    const { nama, alamat, noWa, pricelist } = req.body;
+    
+    const { data: vendors, error: getError } = await insforge.database
+      .from('vendors')
+      .select('id');
+
+    if (getError) {
+      console.error('Error fetching vendors count:', getError);
+      return res.status(500).json({ error: getError.message || 'Gagal membaca data vendor dari database' });
+    }
+
+    const nextNum = (vendors || []).length > 0 ? Math.max(...(vendors || []).map((v: any) => {
+      const match = v.id ? v.id.match(/VND-(\d+)/) : null;
+      return match ? parseInt(match[1]) : 0;
+    })) + 1 : 1;
+    const id = `VND-${String(nextNum).padStart(3, '0')}`;
+
+    const newVendor = {
+      id,
+      nama: nama || '',
+      alamat: alamat || '',
+      noWa: noWa || '',
+      pricelist: pricelist || []
+    };
+
+    const dbVendor = mapVendorToDB(newVendor);
+    const { data, error } = await insforge.database
+      .from('vendors')
+      .insert([dbVendor])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating vendor:', error);
+      return res.status(500).json({ error: error.message || 'Gagal menambahkan vendor ke database' });
+    }
+
+    res.json({ success: true, vendor: mapVendorFromDB(data) });
+  } catch (error: any) {
+    console.error('Error in POST /api/vendors:', error);
+    res.status(500).json({ error: 'Gagal menambahkan vendor' });
+  }
+});
+
+// 14. API: Update Vendor
+app.patch('/api/vendors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dbVendorUpdate = mapVendorToDB({ id, ...req.body });
+
+    const filteredUpdate: any = {};
+    for (const [key, val] of Object.entries(dbVendorUpdate)) {
+      if (val !== undefined && key !== 'id') {
+        filteredUpdate[key] = val;
+      }
+    }
+
+    const { data, error } = await insforge.database
+      .from('vendors')
+      .update(filteredUpdate)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating vendor:', error);
+      return res.status(500).json({ error: error.message || 'Gagal memperbarui vendor di database' });
+    }
+
+    res.json({ success: true, vendor: mapVendorFromDB(data) });
+  } catch (error: any) {
+    console.error('Error in PATCH /api/vendors/:id:', error);
+    res.status(500).json({ error: 'Gagal memperbarui vendor' });
+  }
+});
+
+// 15. API: Delete Vendor
+app.delete('/api/vendors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await insforge.database
+      .from('vendors')
+      .delete()
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      console.error('Error deleting vendor:', error);
+      return res.status(500).json({ error: error.message || 'Gagal menghapus vendor dari database' });
+    }
+
+    res.json({ success: true, id });
+  } catch (error: any) {
+    console.error('Error in DELETE /api/vendors/:id:', error);
+    res.status(500).json({ error: 'Gagal menghapus vendor' });
+  }
+});
+
+// 16. API: List Agents
+app.get('/api/agents', async (req, res) => {
+  try {
+    const { data, error } = await insforge.database
+      .from('agents')
+      .select('*')
+      .order('id', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching agents:', error);
+      return res.status(500).json({ error: error.message || 'Gagal memuat data agen dari database' });
+    }
+
+    const mappedAgents = (data || []).map(mapAgentFromDB);
+    res.json(mappedAgents);
+  } catch (error: any) {
+    console.error('Error in GET /api/agents:', error);
+    res.status(500).json({ error: 'Gagal memuat data agen' });
+  }
+});
+
+// 17. API: Create Agent
+app.post('/api/agents', async (req, res) => {
+  try {
+    const { nama, tipe, noWa, email, diskonPersen } = req.body;
+
+    const { data: agents, error: getError } = await insforge.database
+      .from('agents')
+      .select('id');
+
+    if (getError) {
+      console.error('Error fetching agents count:', getError);
+      return res.status(500).json({ error: getError.message || 'Gagal membaca data agen dari database' });
+    }
+
+    const nextNum = (agents || []).length > 0 ? Math.max(...(agents || []).map((a: any) => {
+      const match = a.id ? a.id.match(/AGT-(\d+)/) : null;
+      return match ? parseInt(match[1]) : 0;
+    })) + 1 : 1;
+    const id = `AGT-${String(nextNum).padStart(3, '0')}`;
+
+    const newAgent = {
+      id,
+      nama: nama || '',
+      tipe: tipe || 'personal',
+      noWa: noWa || '',
+      email: email || '',
+      diskonPersen: diskonPersen || 0
+    };
+
+    const dbAgent = mapAgentToDB(newAgent);
+    const { data, error } = await insforge.database
+      .from('agents')
+      .insert([dbAgent])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating agent:', error);
+      return res.status(500).json({ error: error.message || 'Gagal menambahkan agen ke database' });
+    }
+
+    res.json({ success: true, agent: mapAgentFromDB(data) });
+  } catch (error: any) {
+    console.error('Error in POST /api/agents:', error);
+    res.status(500).json({ error: 'Gagal menambahkan agen' });
+  }
+});
+
+// 18. API: Update Agent
+app.patch('/api/agents/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dbAgentUpdate = mapAgentToDB({ id, ...req.body });
+
+    const filteredUpdate: any = {};
+    for (const [key, val] of Object.entries(dbAgentUpdate)) {
+      if (val !== undefined && key !== 'id') {
+        filteredUpdate[key] = val;
+      }
+    }
+
+    const { data, error } = await insforge.database
+      .from('agents')
+      .update(filteredUpdate)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating agent:', error);
+      return res.status(500).json({ error: error.message || 'Gagal memperbarui agen di database' });
+    }
+
+    res.json({ success: true, agent: mapAgentFromDB(data) });
+  } catch (error: any) {
+    console.error('Error in PATCH /api/agents/:id:', error);
+    res.status(500).json({ error: 'Gagal memperbarui agen' });
+  }
+});
+
+// 19. API: Delete Agent
+app.delete('/api/agents/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await insforge.database
+      .from('agents')
+      .delete()
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      console.error('Error deleting agent:', error);
+      return res.status(500).json({ error: error.message || 'Gagal menghapus agen dari database' });
+    }
+
+    res.json({ success: true, id });
+  } catch (error: any) {
+    console.error('Error in DELETE /api/agents/:id:', error);
+    res.status(500).json({ error: 'Gagal menghapus agen' });
   }
 });
 
