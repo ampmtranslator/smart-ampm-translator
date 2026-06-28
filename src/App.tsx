@@ -5625,17 +5625,23 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                 {/* Header Letterhead container */}
                 <div>
                   <div className="flex items-start justify-between border-b-2 border-indigo-705 pb-5">
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        {/* Stamp style official brand representation */}
-                        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black text-sm select-none">
-                          AM
+                    <div className="flex items-start gap-4">
+                      <img 
+                        src="https://i.ibb.co.com/TDq2jCcc/Logo-AMPMTranslator.webp" 
+                        alt="Logo AMPM" 
+                        referrerPolicy="no-referrer"
+                        className="h-14 w-auto object-contain rounded-lg border border-slate-100 shadow-xs shrink-0"
+                      />
+                      <div className="space-y-1">
+                        <span className="block text-sm font-black text-slate-900 tracking-tight font-display font-sans uppercase">AMPM Translator & Apostille</span>
+                        <div className="text-[9.5px] text-slate-500 font-medium leading-relaxed max-w-sm">
+                          <p className="font-bold text-slate-800">PT Mega Akses Antarbangsa</p>
+                          <p>AXA Tower 45th Floor</p>
+                          <p>Jl. Prof. Dr. Satrio Kav. 18</p>
+                          <p>Kuningan, Setiabudi, Jakarta 12940</p>
+                          <p className="mt-0.5">Telp/WA: +62 822-4040-4545 | hello@ampmtranslator.com</p>
                         </div>
-                        <span className="text-sm font-bold text-slate-900 tracking-tight font-display font-sans uppercase">AMPM Sworn Translator</span>
                       </div>
-                      <span className="block text-[9.5px] text-slate-500 font-medium leading-relaxed max-w-sm">
-                        SK Kemenkumham Kanwil DKI Jakarta. Jl. Dr. Saharjo No.111, Tebet, Jakarta Selatan. Telp/WA: +62 822-4040-4545 | hello@ampmtranslator.com
-                      </span>
                     </div>
 
                     <div className="text-right space-y-1 shrink-0">
@@ -5771,7 +5777,7 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                   <div className="text-center relative w-44 h-32 mr-4 flex flex-col items-center justify-end select-none">
                     {/* Signed Director */}
                     <span className="block text-xs font-bold text-slate-900 border-b border-slate-300 pb-1 w-full max-w-sm">Syahrul Mauluddin</span>
-                    <span className="block text-[10px] text-slate-400 mt-1 font-medium">Direktur Utama - AMPM Translator</span>
+                    <span className="block text-[10px] text-slate-400 mt-1 font-medium">Direktur Utama - AMPM Translator & Apostille</span>
 
                     {/* Ink Stamp Overlay circle */}
                     <div className="absolute top-1 right-7 w-24 h-24 rounded-full border-4 border-indigo-600/20 flex flex-col items-center justify-center -rotate-12 pointer-events-none select-none">
@@ -5924,17 +5930,23 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                   <div>
                     {/* Header Letterhead container */}
                     <div className={`flex items-start justify-between border-b-2 ${styles.primaryBorder} pb-5`}>
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          {/* Stamp style official brand representation */}
-                          <div className={`w-8 h-8 rounded-lg ${styles.iconBg} flex items-center justify-center text-white font-black text-sm select-none`}>
-                            AM
+                      <div className="flex items-start gap-4">
+                        <img 
+                          src="https://i.ibb.co.com/TDq2jCcc/Logo-AMPMTranslator.webp" 
+                          alt="Logo AMPM" 
+                          referrerPolicy="no-referrer"
+                          className="h-14 w-auto object-contain rounded-lg border border-slate-100 shadow-xs shrink-0"
+                        />
+                        <div className="space-y-1">
+                          <span className="block text-sm font-black text-slate-900 tracking-tight font-display font-sans uppercase">AMPM Translator & Apostille</span>
+                          <div className="text-[9.5px] text-slate-500 font-medium leading-relaxed max-w-sm">
+                            <p className="font-bold text-slate-800">PT Mega Akses Antarbangsa</p>
+                            <p>AXA Tower 45th Floor</p>
+                            <p>Jl. Prof. Dr. Satrio Kav. 18</p>
+                            <p>Kuningan, Setiabudi, Jakarta 12940</p>
+                            <p className="mt-0.5">Telp/WA: +62 822-4040-4545 | hello@ampmtranslator.com</p>
                           </div>
-                          <span className="text-sm font-bold text-slate-900 tracking-tight font-display font-sans uppercase">AMPM Sworn Translator</span>
                         </div>
-                        <span className="block text-[9.5px] text-slate-500 font-medium leading-relaxed max-w-sm">
-                          SK Kemenkumham Kanwil DKI Jakarta. Jl. Dr. Saharjo No.111, Tebet, Jakarta Selatan. Telp/WA: +62 822-4040-4545 | hello@ampmtranslator.com
-                        </span>
                       </div>
 
                       <div className="text-right space-y-1 shrink-0">
@@ -5957,7 +5969,7 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                         <span className="block text-[10px] sm:text-right font-bold text-slate-400 uppercase tracking-wide font-sans">Informasi Pembayaran Mandiri / BCA:</span>
                         <span className="block font-bold text-slate-900 font-sans font-sans">No. Rekening Mandiri: 124-000-999-5252</span>
                         <span className="block font-bold text-slate-900 font-sans font-sans">No. Rekening BCA: 224-101-4444</span>
-                        <span className="block font-medium text-slate-650">Atas Nama: PT AMPM Sworn Translator Jasa</span>
+                        <span className="block font-medium text-slate-650">Atas Nama: PT Mega Akses Antarbangsa</span>
                       </div>
                     </div>
 
@@ -6058,7 +6070,7 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                   {/* Stamp & Authorized Signature layout block */}
                   <div className="flex items-end justify-between mt-10 pt-6">
                     <div className="text-[10px] text-slate-400 space-y-1.5">
-                      <span className="block font-medium">Diterbitkan oleh PT AMPM Sworn Translator Jasa</span>
+                      <span className="block font-medium">Diterbitkan oleh PT Mega Akses Antarbangsa</span>
                       <span className={`block text-[8.5px] font-bold border rounded-md px-1.5 py-0.5 w-fit ${styles.statusBadge}`}>STATUS: {invoiceModalLead.isPaid ? 'LUNAS / TERKONFIRMASI' : 'MENUNGGU PEMBAYARAN'}</span>
                     </div>
 
@@ -6066,7 +6078,7 @@ Saya ingin segera memproses pesanan saya dan klaim promo diskon 10% Flash Sale v
                     <div className="text-center relative w-44 h-32 mr-4 flex flex-col items-center justify-end select-none">
                       {/* Signed Director */}
                       <span className="block text-xs font-bold text-slate-900 border-b border-slate-300 pb-1 w-full max-w-sm">Syahrul Mauluddin</span>
-                      <span className="block text-[10px] text-slate-400 mt-1 font-medium">Direktur Utama - AMPM Translator</span>
+                      <span className="block text-[10px] text-slate-400 mt-1 font-medium">Direktur Utama - AMPM Translator & Apostille</span>
 
                       {/* Paid Stamp overlay in nice green stamp circular style */}
                       {invoiceModalLead.isPaid && (
